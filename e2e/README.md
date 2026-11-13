@@ -351,3 +351,25 @@ refused to click either. Nothing was wrong with sync itself, and nobody could se
 job ran it.
 
 If you add a suite that CI does not run, it is not covered - it is only untested more slowly.
+
+## F1 real native desktop-fill security gate
+
+```sh
+pnpm --filter @vault/platform-extension build:chromium
+cargo build --manifest-path clients/desktop/src-tauri/Cargo.toml
+pnpm exec playwright test --config playwright.desktop-link.config.ts e2e/desktop-link/fill-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Requires macOS and the existing isolated scratch-keychain desktop fixture. The test links the
+actual desktop and extension over native messaging/Noise, creates a synthetic desktop login,
+and holds only the final tabs.sendMessage delivery. A no-navigation control must fill correctly.
+Negative cases release delivery after same-origin navigation, cross-origin navigation, scheme
+or port change, active-tab switch, expiry, reuse and actual BFCache restoration. Destination
+fields must stay empty and the synthetic secret must not appear during the settle window.
+The BFCache case asserts `pageshow.persisted`; a reload is not accepted as coverage. The fixture
+allows BFCache rather than inheriting Playwright's default disabling argument.
+
+On Linux this file intentionally reports nine SKIPPED cases. Neither test discovery nor a
+successful TypeScript check is native security acceptance. The separate existing Chromium/Firefox
+transport-contract suite remains useful but does not replace this real native-link run.

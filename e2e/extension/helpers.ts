@@ -303,7 +303,9 @@ export async function addVirtualAuthenticator(
 	return {
 		authenticatorId,
 		cdp,
-		remove: () => cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId }),
+		remove: async () => {
+			await cdp.send("WebAuthn.removeVirtualAuthenticator", { authenticatorId });
+		},
 	};
 }
 

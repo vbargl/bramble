@@ -321,6 +321,8 @@ async function launchBrowser(
 	const port = await freePort();
 	const context = await chromium.launchPersistentContext(profile, {
 		channel: "chromium",
+		...(process.env.CHROMIUM_BINARY ? { executablePath: process.env.CHROMIUM_BINARY } : {}),
+		ignoreDefaultArgs: ["--disable-back-forward-cache"],
 		locale: "en-US",
 		...(process.env.HEADED ? { headless: false } : {}),
 		env: { ...process.env, HOME: home, CFFIXED_USER_HOME: home },
