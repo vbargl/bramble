@@ -632,7 +632,7 @@ export function SyncConnectSection() {
 					<Row
 						icon={<Wifi className="w-4 h-4 text-primary" />}
 						title={t`Add a device`}
-						subtitle={t`Generate a one-time pairing code and listen for a device to join. No vault secrets in the code.`}
+						subtitle={t`Generate a one-time pairing code for your other device. Keep it private while it is on screen.`}
 					>
 						<Button variant="secondary" size="sm" onClick={beginAddDevice}>
 							<Trans>Add a device</Trans>
@@ -811,7 +811,7 @@ export function SyncConnectSection() {
 									<Trans>
 										Scan this on your other device, or copy the code below. Keep it private: anyone
 										who sees it while this window is open could try to join. You'll confirm a
-										matching number on both devices before anything is sent.
+										matching symbols on both devices before anything is sent.
 									</Trans>
 								</p>
 								{/* A failed attempt that did NOT spend the code, so it sits alongside rather

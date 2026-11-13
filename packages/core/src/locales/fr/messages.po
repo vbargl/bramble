@@ -1890,8 +1890,8 @@ msgid "Generate a new code"
 msgstr "Générer un nouveau code"
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
-msgstr "Générer un code d'appairage unique et écouter un appareil pour qu'il rejoigne. Aucun secret de coffre dans le code."
+msgid "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
+msgstr "Générez un code de jumelage à usage unique pour votre autre appareil. Gardez-le secret tant qu’il est affiché."
 
 #: packages/core/src/app/components/PasswordGenerator.tsx
 msgid "Generate another"
@@ -3404,8 +3404,8 @@ msgid "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key
 msgstr "Scannez le QR sur la page de double authentification (2FA) d'un site, ou collez une URI otpauth:// ou la clé de configuration."
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
-msgstr "Scannez ceci sur votre autre appareil, ou copiez le code ci-dessous. Gardez-le confidentiel : toute personne qui le verrait tant que cette fenêtre est ouverte pourrait tenter de se connecter. Vous confirmerez un numéro identique sur les deux appareils avant tout envoi."
+msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
+msgstr "Scannez ceci sur votre autre appareil ou copiez le code ci-dessous. Gardez-le secret : toute personne qui le voit pendant que cette fenêtre est ouverte pourrait tenter de rejoindre le coffre. Confirmez que les symboles correspondent sur les deux appareils avant tout envoi."
 
 #: packages/core/src/app/screens/VaultSetup/components/JoinCard.tsx
 msgid "Scanning…"

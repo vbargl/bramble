@@ -1890,8 +1890,8 @@ msgid "Generate a new code"
 msgstr "Gerar um novo código"
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
-msgstr "Gerar um código de pareamento único e aguardar um dispositivo para se juntar. Nenhum segredo do cofre está no código."
+msgid "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
+msgstr "Gere um código de pareamento de uso único para seu outro dispositivo. Mantenha-o privado enquanto estiver na tela."
 
 #: packages/core/src/app/components/PasswordGenerator.tsx
 msgid "Generate another"
@@ -3404,8 +3404,8 @@ msgid "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key
 msgstr "Escanear o QR na página de 2FA de um site, ou colar um URI otpauth:// ou a chave de configuração."
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
-msgstr "Escaneie isto no seu outro dispositivo ou copie o código abaixo. Mantenha-o privado: qualquer pessoa que o veja enquanto esta janela estiver aberta pode tentar participar. Você confirmará um número correspondente em ambos os dispositivos antes que algo seja enviado."
+msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
+msgstr "Leia este código no outro dispositivo ou copie o código abaixo. Mantenha-o privado: quem o vir enquanto esta janela estiver aberta poderá tentar entrar. Confirme que os símbolos são iguais nos dois dispositivos antes de enviar qualquer dado."
 
 #: packages/core/src/app/screens/VaultSetup/components/JoinCard.tsx
 msgid "Scanning…"
