@@ -84,10 +84,10 @@ interface NativeCryptoPlugin {
 	readFileRange(o: { path: string; offset: number; length: number }): Promise<{ value: string }>;
 	isLocked(): Promise<{ value: boolean }>;
 	lock(): Promise<void>;
-	generateVek(): Promise<{ value: string }>;
+	generateVek(): Promise<void>;
 	unlockWithVek(o: { vekB64: string }): Promise<void>;
 	exportVek(): Promise<{ value: string }>;
-	rotateVek(): Promise<{ value: string }>;
+	rotateVek(): Promise<void>;
 	generateSalt(): Promise<{ value: string }>;
 	generateSlotId(): Promise<{ value: string }>;
 	wrapVekPassword(o: {
@@ -245,10 +245,16 @@ const Native = registerPlugin<NativeCryptoPlugin>("NativeCrypto");
 const nativeModule: VaultCrypto = {
 	is_locked: async () => (await Native.isLocked()).value,
 	lock: () => Native.lock(),
-	generate_vek: async () => (await Native.generateVek()).value,
+	generate_vek: async () => {
+		await Native.generateVek();
+		return undefined;
+	},
 	unlock_with_vek: (vekB64) => Native.unlockWithVek({ vekB64 }),
 	export_vek: async () => (await Native.exportVek()).value,
-	rotate_vek: async () => (await Native.rotateVek()).value,
+	rotate_vek: async () => {
+		await Native.rotateVek();
+		return undefined;
+	},
 	generate_salt: async () => (await Native.generateSalt()).value,
 	generate_slot_id: async () => (await Native.generateSlotId()).value,
 

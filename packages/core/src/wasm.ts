@@ -23,10 +23,10 @@ export interface VaultCrypto {
 	is_locked(): Awaitable<boolean>;
 	lock(): Awaitable<void>;
 
-	generate_vek(): Awaitable<string>;
+	generate_vek(): Awaitable<string | undefined>;
 	unlock_with_vek(vekB64: string): Awaitable<void>;
 	export_vek(): Awaitable<string>;
-	rotate_vek(): Awaitable<string>;
+	rotate_vek(): Awaitable<string | undefined>;
 
 	generate_salt(): Awaitable<string>;
 	generate_slot_id(): Awaitable<string>;

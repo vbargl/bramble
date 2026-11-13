@@ -178,12 +178,12 @@ export interface CryptoAdapter {
 	// docs/multiple-vaults.md "Per-vault VEK".
 	withVault?(vaultId: string): CryptoAdapter;
 
-	generateVek(): Promise<string>; // creates VEK + loads it; returns b64 for caching
+	generateVek(): Promise<string | undefined>; // native: no return; extension: b64 for caching
 	unlockWithVek(vekB64: string): Promise<void>; // session resume (offscreen restart)
 	exportVek(): Promise<string>; // session resume (background cache)
 	// Replaces the in-memory VEK. Caller must re-wrap every slot and re-encrypt
-	// every entry before persisting. Returns the new VEK b64.
-	rotateVek(): Promise<string>;
+	// every entry before persisting. Native returns nothing; extension returns b64 for caching.
+	rotateVek(): Promise<string | undefined>;
 	lock(): Promise<void>;
 	isLocked(): Promise<boolean>;
 	// Fires on a session lock from outside this UI context (background auto-lock).

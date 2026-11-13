@@ -86,7 +86,8 @@ class NativeCryptoPlugin : Plugin() {
 
     @PluginMethod
     fun generateVek(call: PluginCall) = call.runCrypto {
-        call.resolve(JSObject().put("value", uniffi.vault_crypto.generateVek()))
+        uniffi.vault_crypto.generateVekInPlace()
+        call.resolve()
     }
 
     @PluginMethod
@@ -105,7 +106,8 @@ class NativeCryptoPlugin : Plugin() {
 
     @PluginMethod
     fun rotateVek(call: PluginCall) = call.runCrypto {
-        call.resolve(JSObject().put("value", uniffi.vault_crypto.rotateVek()))
+        uniffi.vault_crypto.rotateVekInPlace()
+        call.resolve()
     }
 
     @PluginMethod

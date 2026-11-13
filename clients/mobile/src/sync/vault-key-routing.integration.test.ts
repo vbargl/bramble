@@ -65,7 +65,8 @@ function memoryStorage() {
 
 /** Build a real vault: fresh VEK, a password slot wrapping it, entries sealed under it. */
 async function createVault(password: string) {
-	const vek = await crypto.generateVek(); // swaps the global slot, exactly like the app
+	await crypto.generateVek();
+	const vek = await crypto.exportVek(); // swaps the global slot, exactly like the app
 	const slot = await wrapPasswordSlot(crypto, password);
 	const bytes = await buildVaultBytes(crypto, [slot], emptyEntriesPayload());
 	return { vek, bytes };
