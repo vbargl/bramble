@@ -18,6 +18,9 @@
 		"sync/enrollment-pin-security.spec.ts",
 		"desktop-link/key-residency-security.spec.ts",
 		"website/headers-security.spec.ts",
-		"../playwright.website-security.config.ts"
+		"../playwright.website-security.config.ts",
+		"sync/pairing-copy-security.spec.ts",
+		"website/copy-security.spec.ts",
+		"../playwright.website-copy.config.ts"
 	]
 }
