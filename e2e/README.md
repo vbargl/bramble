@@ -373,3 +373,23 @@ allows BFCache rather than inheriting Playwright's default disabling argument.
 On Linux this file intentionally reports nine SKIPPED cases. Neither test discovery nor a
 successful TypeScript check is native security acceptance. The separate existing Chromium/Firefox
 transport-contract suite remains useful but does not replace this real native-link run.
+
+## F2 admission security gate
+
+```sh
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/admission-security.spec.ts
+```
+
+Build the WASM and extension from this branch first. `CHROMIUM_BINARY` optionally selects a
+system Chromium for both clients. The tests pair two actual clients through the local relay,
+then poison only the compromised sender's local roster. The victim receives the malicious
+roster through production encrypted gossip. A legitimate entry delivered in the same period
+is the positive control, so offline/non-delivery cannot masquerade as rejection. Tests cover
+unsigned rogue membership, a valid member signature without admission, a valid signature
+attempting to replace a pinned authority, and persistence after revocation. Signature controls
+use the real Rust verifier, not a callback returning true.
+
+A UI password change must leave the group after reload, and the next approved invite must
+create a fresh group and admission authority. This suite covers the Chromium extension and
+mobile web fallback; native platform bindings and mixed deployed-version rollout need their
+own acceptance runs. No production relay, account or real vault is used.

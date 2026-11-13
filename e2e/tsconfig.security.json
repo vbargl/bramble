@@ -2,8 +2,17 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"noEmit": true,
-		"types": ["node", "chrome"],
-		"typeRoots": ["../node_modules/@types", "../clients/extension/node_modules/@types"]
+		"types": [
+			"node",
+			"chrome"
+		],
+		"typeRoots": [
+			"../node_modules/@types",
+			"../clients/extension/node_modules/@types"
+		]
 	},
-	"include": ["desktop-link/fill-security.spec.ts"]
+	"include": [
+		"desktop-link/fill-security.spec.ts",
+		"sync/admission-security.spec.ts"
+	]
 }
