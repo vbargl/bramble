@@ -340,3 +340,22 @@ refused to click either. Nothing was wrong with sync itself, and nobody could se
 job ran it.
 
 If you add a suite that CI does not run, it is not covered - it is only untested more slowly.
+
+## F3 recovery security gate
+
+Build the WASM and Chromium extension, then run:
+
+```sh
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/recovery-security.spec.ts
+```
+
+`CHROMIUM_BINARY` may select a system Chromium for both peers. The suite creates disposable
+vaults and pairs real extension/mobile-web clients through the local relay. It first proves
+normal sync and that a stolen synthetic VEK opens the pre-rotation file, then drives rotation
+through Settings and verifies old-key rejection, new-key acceptance and persistent group
+removal after reload. A separate WASM instance performs the attacker decryptions.
+
+The attachment case is an explicitly expected failure, activated only after the real UI has
+refused rotation for its documented attachment limitation. It tracks an OPEN requirement;
+Playwright's aggregate successful exit does not mean attachment recovery is fixed. Native
+mobile/desktop and biometric-device acceptance are outside this browser suite.
