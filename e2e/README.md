@@ -462,3 +462,20 @@ rules. Real browser checks prove the legitimate hashed theme script executes, an
 script is blocked, and a different origin cannot frame the page. `CHROMIUM_BINARY` can select a
 system Chromium. All tests use loopback endpoints. Local HSTS header validation does not prove
 production TLS configuration, HSTS preload state, or that these headers have been deployed.
+
+## F7 mailbox HTTP security gate
+
+```sh
+pnpm --filter bramble-mailbox-server exec vitest run src/node/security.e2e.test.ts
+```
+
+Although run by Vitest, these are HTTP E2E tests: the production Node server listens on an
+actual TCP port with disposable SQLite/database migrations and disk storage. No `app.request`
+or authentication mocks. A genuine Ed25519-signed mailbox create/read is the positive control;
+unsigned encoded-path requests must hit the authentication/token gate on public and private
+servers. Test both a real member route and the entire protected namespace, including newline
+and Unicode line separators in otherwise unknown paths. Token-only requests still require a
+signature. The old Hono version returns unauthenticated 404 for the protected unknown encoded
+paths and fails; this is middleware-bypass evidence, not proof of mailbox-content disclosure.
+Unused Hono helper advisories and remaining development-tool dependency advisories are not
+cleared by this application test.
