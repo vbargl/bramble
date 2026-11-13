@@ -1,0 +1,9 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"types": ["node", "chrome"],
+		"typeRoots": ["../node_modules/@types", "../clients/extension/node_modules/@types"]
+	},
+	"include": ["sync/enrollment-pin-security.spec.ts"]
+}

@@ -35,6 +35,7 @@ export async function launchExtensionContext(
 		// `channel: "chromium"` runs Chromium's NEW headless, which (unlike the default/old headless)
 		// actually loads MV3 extensions and starts their service worker. HEADED=1 shows the window.
 		channel: "chromium",
+		...(process.env.CHROMIUM_BINARY ? { executablePath: process.env.CHROMIUM_BINARY } : {}),
 		// The specs match English UI strings; a host in another locale would translate them.
 		locale: "en-US",
 		...(process.env.HEADED ? { headless: false } : {}),

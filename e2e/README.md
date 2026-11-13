@@ -340,3 +340,19 @@ refused to click either. Nothing was wrong with sync itself, and nobody could se
 job ran it.
 
 If you add a suite that CI does not run, it is not covered - it is only untested more slowly.
+
+## F4 enrollment pin security gate
+
+```sh
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/enrollment-pin-security.spec.ts
+```
+
+Build WASM and the Chromium extension from this branch first. `CHROMIUM_BINARY` optionally
+selects a system Chromium for both clients. Actual app pairing runs over the local relay and
+WebRTC. The observer records outgoing Noise frame lengths and production status events without
+replacing crypto or transport. Correct pin: messages 1 and 3 are sent and pairing succeeds.
+Different pin: message 2 is processed, an explicit pin-mismatch status arrives, and only message
+1 has left the joiner; message 3 containing its static identity never leaves. Missing pin:
+validation rejects the code and sends no handshake frame. The original late-pin enrollment
+host emits message 3 and fails the mismatch case. Native FFI/app-device acceptance remains
+separate from this WASM browser run.
