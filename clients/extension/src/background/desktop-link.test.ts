@@ -2146,3 +2146,25 @@ describe("a borrowed pipe serves link requests, not just pairing", () => {
 		expect(await mod.transportNeeded()).toBe(true);
 	});
 });
+
+it("carries the document capability over the native link in both directions", async () => {
+	const mod = await load();
+	const onFill = vi.fn();
+	mod.onDesktopFillRequest(onFill);
+	await open(mod, []);
+	const target = "a".repeat(64);
+	await mod.reportActiveTab("example.com", target);
+	const sent = h.posted.at(-1) as { sealed: string };
+	expect(JSON.parse(h.sealed.get(sent.sealed) ?? "{}")).toEqual({
+		op: "activeTab",
+		hostname: "example.com",
+		target,
+	});
+	deliver({
+		sealed: `sealed:${JSON.stringify({ fill: { username: "u", password: "s", target } })}`,
+	});
+	await vi.waitFor(() =>
+		expect(onFill).toHaveBeenCalledWith({ username: "u", password: "s", target, totpKey: null }),
+	);
+	expect(h.broadcast).toContainEqual({ type: "DESKTOP_FILL_LINK_READY" });
+});

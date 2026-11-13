@@ -209,23 +209,50 @@ describe("content: desktop fill re-reads the page (issue #59 fallout)", () => {
 		vi.useRealTimers();
 	});
 
-	const desktopFill = (): unknown[] => {
-		const replies: unknown[] = [];
-		onMessage?.(
-			{ type: "DESKTOP_FILL", payload: { username: "me@example.com", password: "s3cr3t" } },
-			{},
-			(r: unknown) => replies.push(r),
-		);
-		return replies;
+	const desktopFill = async (): Promise<void> => {
+		safeRequest.mockResolvedValueOnce({
+			ok: true,
+			data: { username: "me@example.com", password: "s3cr3t" },
+		} as never);
+		onMessage?.({ type: "DESKTOP_FILL_READY" }, {}, () => {});
+		await Promise.resolve();
+		await Promise.resolve();
 	};
 
-	it("fills a field the cached model never saw become one", () => {
+	it("fills a field the cached model never saw become one", async () => {
 		// Warm the cache while the page has no login field, then flip the type. An attribute change
 		// produces no childList record, so nothing invalidates the model: the desktop's fill would
 		// be answered from a snapshot in which this page has nothing to fill.
-		expect(desktopFill()).toEqual([{ ok: false, error: "no field to fill" }]);
+		await desktopFill();
 		(document.getElementById("pw") as HTMLInputElement).type = "password";
 
-		expect(desktopFill()).toEqual([{ ok: true }]);
+		await desktopFill();
+		expect((await import("./fill")).fillForm).toHaveBeenCalledWith(
+			"me@example.com",
+			"s3cr3t",
+			false,
+			document.getElementById("pw"),
+		);
 	});
+});
+
+it("cancels a late desktop response after pagehide, including a future BFCache return", async () => {
+	const { fillForm } = await import("./fill");
+	vi.mocked(fillForm).mockClear();
+	document.body.innerHTML = '<form><input type="password" name="password"></form>';
+	invalidatePageFields();
+	let finish: ((r: unknown) => void) | undefined;
+	safeRequest.mockImplementationOnce(
+		() =>
+			new Promise((resolve) => {
+				finish = resolve;
+			}) as never,
+	);
+	onMessage?.({ type: "DESKTOP_FILL_READY" }, {}, () => {});
+	expect(finish).toBeTypeOf("function");
+	window.dispatchEvent(new Event("pagehide"));
+	finish?.({ ok: true, data: { username: "u", password: "LATE_SECRET" } });
+	await Promise.resolve();
+	await Promise.resolve();
+	expect(fillForm).not.toHaveBeenCalled();
 });
