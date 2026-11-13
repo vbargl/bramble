@@ -6,6 +6,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: @lingui/cli\n"
 "Language: ko\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
 
 #. placeholder {0}: result.warnings.length - 8
 #: packages/core/src/app/screens/Import/ImportShell.tsx
@@ -1703,8 +1709,8 @@ msgid "Generate a new code"
 msgstr "새 코드 생성"
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
-msgstr "일회용 페어링 코드를 생성하고 기기가 페어링에 참여할 때까지 대기합니다. 코드에는 보관함 기밀이 포함되지 않습니다."
+msgid "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
+msgstr "다른 기기를 위한 일회용 페어링 코드를 생성합니다. 화면에 표시되는 동안 코드를 비공개로 유지하세요."
 
 #: packages/core/src/app/components/PasswordGenerator.tsx
 msgid "Generate another"
@@ -3072,8 +3078,8 @@ msgid "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key
 msgstr "사이트의 2FA 페이지에서 QR을 스캔하거나 otpauth:// URI 또는 설정 키를 붙여넣으세요."
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
-msgstr "다른 기기에서 이 코드를 스캔하거나 아래 코드를 복사하세요. 비밀로 유지하세요. 이 창이 열려 있는 동안 코드를 본 사람은 누구나 참여를 시도할 수 있습니다. 전송 전에 두 기기에서 일치하는 번호를 확인하게 됩니다."
+msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
+msgstr "다른 기기에서 스캔하거나 아래 코드를 복사하세요. 이 창이 열려 있는 동안 코드를 본 사람은 참여를 시도할 수 있으므로 비공개로 유지하세요. 데이터를 보내기 전에 두 기기에 표시된 기호가 일치하는지 확인합니다."
 
 #: packages/core/src/app/screens/VaultSetup/components/JoinCard.tsx
 msgid "Scanning…"
