@@ -151,8 +151,8 @@ function makePlatform(
 			getActiveVault: vi.fn(async () => "v1"),
 			flushPendingCornerCapture: vi.fn(async () => {}),
 			stopSyncSpike: vi.fn(async () => {
-				h.steps.push("stop");
-				if (over.failStop) throw new Error("stop failed");
+				h.steps.push("stop-sync");
+				if (over.failStop) throw new Error("transport still active");
 			}),
 		},
 		clipboard: {},
@@ -304,17 +304,90 @@ it("leaves the old sync group before changing a master password", async () => {
 		await get().changeMasterPassword("new-password");
 	});
 	expect(h.steps.findIndex((s) => s.startsWith("remove:sync.group"))).toBeLessThan(
-		h.steps.indexOf("stop"),
+		h.steps.indexOf("stop-sync"),
 	);
-	expect(h.steps.indexOf("stop")).toBeLessThan(h.steps.indexOf("write"));
+	expect(h.steps.indexOf("stop-sync")).toBeLessThan(h.steps.indexOf("write"));
 	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
 });
 it("does not write a new credential if the old group transport cannot stop", async () => {
 	const h = makePlatform({ group: true, failStop: true });
 	const get = await actions(h);
 	await act(async () => {
-		await expect(get().changeMasterPassword("new-password")).rejects.toThrow(/stop failed/);
+		await expect(get().changeMasterPassword("new-password")).rejects.toThrow(
+			/transport still active/,
+		);
 	});
 	expect(h.writes).toBe(0);
 	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+});
+
+it("leaves the old sync group before key replacement and requires fresh pairing", async () => {
+	const h = makePlatform({ group: true });
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.rotated).toBe(1);
+	expect(h.steps.indexOf("remove:sync.group:v1")).toBeLessThan(h.steps.indexOf("stop-sync"));
+	expect(h.steps.indexOf("stop-sync")).toBeLessThan(h.steps.indexOf("rotate"));
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+	expect(h.steps).toContain("remove:sync.admissionSalt:v1");
+});
+it("stops any transport before replacing the encryption key", async () => {
+	const h = makePlatform();
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.steps.indexOf("stop-sync")).toBeGreaterThanOrEqual(0);
+	expect(h.steps.indexOf("stop-sync")).toBeLessThan(h.steps.indexOf("rotate"));
+});
+it("leaves the old vault intact when stopping sync fails", async () => {
+	const h = makePlatform({ failStop: true, group: true });
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("hunter2")).rejects.toThrow(/transport still active/);
+	});
+	expect(h.rotated).toBe(0);
+	expect(h.writes).toBe(0);
+});
+
+it("forgets the biometric copy of the old key before rotation", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.biometric = {
+		disable: vi.fn(async () => {
+			h.steps.push("disable-biometric");
+		}),
+	} as unknown as NonNullable<Platform["biometric"]>;
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.platform.biometric.disable).toHaveBeenCalledWith("v1");
+	expect(h.steps.indexOf("disable-biometric")).toBeLessThan(h.steps.indexOf("rotate"));
+});
+it("aborts before replacing the key if forgetting the biometric cache fails", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.biometric = {
+		disable: vi.fn(async () => {
+			throw new Error("keychain unavailable");
+		}),
+	} as unknown as NonNullable<Platform["biometric"]>;
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("hunter2")).rejects.toThrow(/keychain/);
+	});
+	expect(h.rotated).toBe(0);
+	expect(h.writes).toBe(0);
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+});
+it("does not disconnect the group for an incorrect password", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.crypto.verifyPasswordSlot = vi.fn(async () => false);
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("wrong")).rejects.toThrow(/incorrect/);
+	});
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeDefined();
+	expect(h.steps).not.toContain("stop-sync");
 });

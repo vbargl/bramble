@@ -1388,6 +1388,10 @@ msgid "Disconnect this browser"
 msgstr "이 브라우저 연결 해제"
 
 #: packages/core/src/hooks/useVault.tsx
+#~ msgid "Disconnect this device from sync before rotating its vault key."
+#~ msgstr "보관함 키를 변경하기 전에 이 기기의 동기화를 해제하세요."
+
+#: packages/core/src/hooks/useVault.tsx
 msgid "Disconnect this device from sync before turning off the master password."
 msgstr "마스터 비밀번호를 끄기 전에 이 기기를 동기화에서 연결 해제하세요."
 

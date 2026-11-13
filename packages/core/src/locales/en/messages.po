@@ -1532,6 +1532,10 @@ msgid "Disconnect this browser"
 msgstr "Disconnect this browser"
 
 #: packages/core/src/hooks/useVault.tsx
+#~ msgid "Disconnect this device from sync before rotating its vault key."
+#~ msgstr "Disconnect this device from sync before rotating its vault key."
+
+#: packages/core/src/hooks/useVault.tsx
 msgid "Disconnect this device from sync before turning off the master password."
 msgstr "Disconnect this device from sync before turning off the master password."
 
