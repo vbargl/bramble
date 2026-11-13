@@ -166,14 +166,39 @@ export function verifyRemoteRoster(
 	require: { signatures?: boolean; admission?: boolean } = {},
 ): RosterPayload {
 	const anchored = new Map<string, string>(); // known id -> its established (first-seen) sigKey
-	for (const d of local.devices) if (d.sigKey) anchored.set(d.id, d.sigKey);
+	const anchoredAdmissionKey = new Map<string, string>(); // known id -> its established admissionKey
+	for (const d of local.devices) {
+		if (d.sigKey) anchored.set(d.id, d.sigKey);
+		if (d.admissionKey) anchoredAdmissionKey.set(d.id, d.admissionKey);
+	}
+	const known = new Map(local.devices.map((entry) => [entry.id, entry]));
 	const tombstoned = new Set(local.revoked.map((t) => t.id)); // revoked ids stay dead (B1)
 	const devices = remote.devices.filter((entry) => {
 		if (tombstoned.has(entry.id)) return false;
+		const held = known.get(entry.id);
+		// A legacy unsigned identity cannot bootstrap its own new authority through gossip.
+		// Re-pairing is the trust boundary for groups without established signing authorities.
+		if (
+			held &&
+			!held.sigKey &&
+			require.admission &&
+			(entry.publicKey !== held.publicKey || !isAdmissionValid(entry))
+		)
+			return false;
 		const anchor = anchored.get(entry.id);
 		if (anchor !== undefined) {
 			// Established signing device: same key + valid signature (no swap, no downgrade).
-			return entry.sigKey === anchor && entry.sig !== undefined && isSigValid(entry);
+			if (!(entry.sigKey === anchor && entry.sig !== undefined && isSigValid(entry))) return false;
+			// Established device's admissionKey must not change (TOFU anchor). A compromised member
+			// holding the sigKey cannot swap admissionKey to bypass admission without the password.
+			// See docs/p2p-sync-revocation-hardening.md: blocker for phase-2 flip.
+			const anchorAdmission = anchoredAdmissionKey.get(entry.id);
+			if (require.admission && entry.admissionKey !== anchorAdmission) return false;
+			if (anchorAdmission !== undefined) {
+				// Device had an admissionKey before; it cannot change.
+				if (entry.admissionKey !== anchorAdmission) return false;
+			}
+			return true;
 		}
 		// Brand-new id: self-sign + admission gates. Verify-if-present in phase 1; the `require` flags
 		// (from core flags.json) flip enforcement on in phase 2.

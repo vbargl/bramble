@@ -552,11 +552,15 @@ export async function syncLocalRoster(vaultId: string): Promise<string> {
 }
 
 /** A peer's roster arrived: merge revocations/additions, persist, and nudge the popup. */
-async function syncApplyRoster(vaultId: string, rosterJson: string): Promise<void> {
+async function syncApplyRoster(
+	vaultId: string,
+	rosterJson: string,
+	expectedGroupKey?: string,
+): Promise<void> {
 	const ctx = await pinnedCtx(vaultId);
 	if (!ctx) return;
 	const group = await getStoredGroup(ctx);
-	if (!group) return;
+	if (!group || (expectedGroupKey !== undefined && group.groupKey !== expectedGroupKey)) return;
 	await storeGroup(
 		{
 			groupKey: group.groupKey,
@@ -593,8 +597,8 @@ on(
 on(
 	"SYNC_APPLY_ROSTER",
 	extensionOnly(async (message) => {
-		const { vaultId, rosterJson } = ApplyRosterMsgSchema.parse(message.payload);
-		await syncApplyRoster(vaultId, rosterJson);
+		const { vaultId, rosterJson, expectedGroupKey } = ApplyRosterMsgSchema.parse(message.payload);
+		await syncApplyRoster(vaultId, rosterJson, expectedGroupKey);
 		return { ok: true };
 	}),
 );

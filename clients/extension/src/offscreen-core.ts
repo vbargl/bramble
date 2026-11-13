@@ -105,7 +105,11 @@ export interface SyncBridge {
 	fetchLocalPayload: (vaultId: string) => Promise<string>;
 	pushRemotePayload: (vaultId: string, payloadJson: string) => Promise<void>;
 	fetchLocalRoster: (vaultId: string) => Promise<string>;
-	pushRemoteRoster: (vaultId: string, rosterJson: string) => Promise<void>;
+	pushRemoteRoster: (
+		vaultId: string,
+		rosterJson: string,
+		expectedGroupKey?: string,
+	) => Promise<void>;
 	/** An attachment arrived from a peer: a backup that was waiting for it can run now. */
 	blobArrived?: () => void;
 	/** Frames to the desktop app over the native link, which the background owns. Bridged rather
@@ -779,6 +783,7 @@ export async function addEnrolledToLocalRoster(
 	vaultId: string,
 	admission: { password: string; saltB64: string; adminId: string } | undefined,
 	entryJson: string,
+	expectedGroupKey?: string,
 ): Promise<void> {
 	try {
 		const entry = RosterEntrySchema.parse(JSON.parse(entryJson));
@@ -794,7 +799,11 @@ export async function addEnrolledToLocalRoster(
 			);
 			admitted = { ...entry, admission: { by: admission.adminId, sig } };
 		}
-		await bridge.pushRemoteRoster(vaultId, encodeRoster({ devices: [admitted], revoked: [] }));
+		await bridge.pushRemoteRoster(
+			vaultId,
+			encodeRoster({ devices: [admitted], revoked: [] }),
+			expectedGroupKey,
+		);
 	} catch (err) {
 		console.warn("[offscreen] host-side roster add failed", err);
 	}
@@ -1062,8 +1071,14 @@ export async function handleHostMessage(type: string, payload: unknown): Promise
 						// Add to the roster in the host (reliable) AND notify the popup (updates its UI +
 						// upgrades the same entry). See addEnrolledToLocalRoster.
 						if (inviteVaultId)
-							void addEnrolledToLocalRoster(bridge, inviteVaultId, admission, entryJson);
-						broadcastSyncEvent({ kind: "enrolled", entryJson });
+							void addEnrolledToLocalRoster(
+								bridge,
+								inviteVaultId,
+								admission,
+								entryJson,
+								opts.groupKeyB64,
+							);
+						broadcastSyncEvent({ kind: "enrolled", entryJson, groupKey: opts.groupKeyB64 });
 					},
 				});
 				return { ok: true };

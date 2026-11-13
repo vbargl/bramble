@@ -290,7 +290,7 @@ export async function startEnrollInvite(opts: {
 		devicePrivB64: privateKey,
 		wasm,
 		report,
-		onEnrolled: (entryJson) => emit({ kind: "enrolled", entryJson }),
+		onEnrolled: (entryJson) => emit({ kind: "enrolled", entryJson, groupKey: opts.groupKeyB64 }),
 	});
 }
 

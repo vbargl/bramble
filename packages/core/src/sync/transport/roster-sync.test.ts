@@ -114,14 +114,14 @@ describe("verifyRosterEnvelope (Item A: reject impersonation before merge)", () 
 		expect(decodeRoster(out as string).devices.map((d) => d.id)).toEqual(["laptop"]);
 	});
 
-	it("passes the roster through unchanged when the host has no roster_verify (degrade)", async () => {
+	it("rejects the roster when the host has no roster verifier", async () => {
 		const json = encodeRoster({ devices: [entry("x", "sk-x", "forged")], revoked: [] });
 		const noVerify = {
 			roster: rosterWith([]),
 			fetchLocalRoster: async () => "",
 			wasm: {} as unknown as RosterSyncWasm,
 		};
-		expect(await verifyRosterEnvelope(noVerify, json)).toBe(json);
+		expect(await verifyRosterEnvelope(noVerify, json)).toBeNull();
 	});
 
 	it("returns null on an unparseable roster", async () => {
@@ -212,7 +212,7 @@ describe("verifyRosterEnvelope (Item A: password-authority admission gate for ne
 		).not.toContain("phone");
 	});
 
-	it("tolerates a new signed id with no admission (phase-1 verify-if-present)", async () => {
+	it("rejects a new signed id with no admission (phase-2 enforcement)", async () => {
 		const noAdmission: RosterEntry = {
 			id: "phone",
 			publicKey: "pk-phone",
@@ -222,7 +222,9 @@ describe("verifyRosterEnvelope (Item A: password-authority admission gate for ne
 			sigKey: "sk-phone",
 			sig: "valid",
 		};
-		expect(await idsAfter(opts, { devices: [admitter, noAdmission], revoked: [] })).toContain(
+		// Phase 2 enforcement: new devices must be admitted by a current member with the password.
+		// A signed but unadmitted device is now rejected.
+		expect(await idsAfter(opts, { devices: [admitter, noAdmission], revoked: [] })).not.toContain(
 			"phone",
 		);
 	});
@@ -374,15 +376,16 @@ describe("one envelope that carries both a voucher and who it vouches for", () =
 		return { ids: () => stored.devices.map((d) => d.id), wasm, stored: () => stored };
 	}
 
-	it("lets a new device in on the admission key that arrived with it", async () => {
+	it("does not promote a device to an admission authority through gossip", async () => {
 		const phone = device("phone", "cccc", 3, admittedBy("inviter", "adm-inviter"));
 
-		const { ids } = await receive(
+		const { ids, wasm } = await receive(
 			{ devices: [self, inviterBefore], revoked: [] },
 			{ devices: [self, inviter, phone], revoked: [] },
 		);
-
-		await vi.waitFor(() => expect(ids()).toContain("phone"));
+		await vi.waitFor(() => expect(wasm.roster_verify).toHaveBeenCalled());
+		await new Promise((r) => setTimeout(r, 30));
+		expect(ids()).not.toContain("phone");
 	});
 
 	it("follows a chain of devices that each admitted the next", async () => {
@@ -393,7 +396,7 @@ describe("one envelope that carries both a voucher and who it vouches for", () =
 		const phone = device("phone", "cccc", 4, admittedBy("tablet", "adm-tablet"));
 
 		const { ids } = await receive(
-			{ devices: [self, inviterBefore], revoked: [] },
+			{ devices: [self, inviter], revoked: [] },
 			{ devices: [self, inviter, tablet, phone], revoked: [] },
 		);
 

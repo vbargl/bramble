@@ -896,6 +896,10 @@ msgstr "Master-Passwort ändern"
 msgid "Changed on two devices before they synced"
 msgstr "Auf zwei Geräten geändert, bevor sie synchronisiert wurden"
 
+#: packages/core/src/app/screens/Settings/components/MasterPasswordSection.tsx
+msgid "Changing this password disconnects this device from sync. Pair trusted devices again afterward."
+msgstr "Das Ändern dieses Passworts trennt dieses Gerät von der Synchronisierung. Koppeln Sie vertrauenswürdige Geräte anschließend erneut."
+
 #: packages/core/src/app/screens/Settings/components/UpdatesSection.tsx
 msgid "Check"
 msgstr "Überprüfen"

@@ -471,3 +471,33 @@ Checklist before flipping `rosterRequireSignatures` / `rosterRequireAdmission` -
 4. [ ] `rosterRequireSignatures` may flip before `rosterRequireAdmission` (`sigKey` pinning is already
    done, so that flip is sound as coded) - but on its own it closes impersonation only, not
    rogue-injection. `rosterRequireAdmission` is the one with teeth.
+
+## Strict enforcement branch: migration warning
+
+This branch rejects new unsigned/unadmitted identities, missing verifiers, and admission-key
+promotion or replacement through ordinary gossip. Revoked identities cannot authorize admission.
+An attacker holding a member signing key cannot turn a previously non-admitting member into a
+new authority. Legacy unsigned identities require explicit re-pairing rather than automatic TOFU.
+
+**Not a drop-in rollout.** Changing a master password changes its admission derivation. The existing
+producer does not implement an old-authority-signed transition, and a newly paired member without
+an admission key cannot promote itself through gossip. Before shipping, choose explicit group
+re-pairing with an approved admission-authority flow or implement the versioned authority-rotation
+chain described above. The strict branch is a fail-closed security patch, not verified seamless
+mixed-client migration. Do not deploy it while those enrollment paths remain unaccepted.
+
+### Strict admission migration
+
+Strict signature/admission checks require an authority fixed during approved pairing. A new
+founder and each joiner now include a signed admission public key in their initial entry. Its
+random per-device, per-group salt is public local metadata (`sync.admissionSalt:<vaultId>`),
+independent of the password unlock slot. Gossip cannot introduce or replace that authority.
+An existing group without this information must be disconnected and recreated by manually
+pairing trusted devices with updated clients. There is no automatic legacy promotion.
+
+Changing a master password leaves this device's group and stops its transport before writing
+the new password slot. Pair trusted devices again afterward. This is a local password-slot
+change, not VEK rotation or cryptographic eviction: an already compromised peer may retain
+old vault material. Fresh group creation generates a fresh admission salt and group key.
+Pending enrollment callbacks are bound to their original group key and cannot add a member
+into a replacement group. Recovery from stolen VEKs requires the separate key-rotation flow.

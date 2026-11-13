@@ -2,6 +2,7 @@
 // the inviter's static key, the joiner introduces itself, the user confirms the SAS, and only
 // then does the inviter seal {vek, roster, entries} over the Noise session. See docs/p2p-sync.md.
 
+import { flags } from "../../flags";
 import { base64ToBytes, bytesToBase64 } from "../../util/bytes";
 import { withTimeout } from "../../util/with-timeout";
 import { buildVaultBytes, type VaultBuildCrypto, wrapPasswordSlot } from "../../vault/build-vault";
@@ -432,6 +433,10 @@ async function recvJoinerHello(
 		);
 		return null;
 	}
+	if (flags.rosterRequireAdmission && (!entry.sigKey || !entry.sig || !entry.admissionKey)) {
+		opts.report("Update the joining device before pairing: it has no admission authority.");
+		return null;
+	}
 	return entry;
 }
 
@@ -488,6 +493,14 @@ export async function receiveBundle(
 		return;
 	}
 	const bundle = decodeEnrollmentBundle(first);
+	if (
+		flags.rosterRequireAdmission &&
+		bundle.roster.devices.some((d) => !d.sigKey || !d.sig || !d.admissionKey)
+	) {
+		peer.close();
+		opts.onJoinError?.("Update all devices and recreate this sync group before pairing.");
+		return;
+	}
 	// NOT AN ACCESS CONTROL, despite reading like one. This runs on the JOINER, and the bundle it
 	// is checking already contains the VEK: sendBundle ships {vek, ...} in one frame, so anything
 	// that reaches SAS approval holds the vault before this line executes. A modified or older

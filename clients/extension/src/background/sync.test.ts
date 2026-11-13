@@ -421,6 +421,25 @@ describe("sync is pinned to one vault", () => {
 		expect(JSON.stringify(await groups())).toBe(before);
 	});
 
+	it("does not admit a stale invite into a replacement group in the same vault", async () => {
+		stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a" });
+		await loadSync();
+		const { on } = await import("./router");
+		const apply = vi.mocked(on).mock.calls.find(([type]) => type === "SYNC_APPLY_ROSTER")?.[1] as (
+			message: unknown,
+		) => Promise<unknown>;
+		const before = JSON.stringify(await chrome.storage.local.get("sync.group:a"));
+		await apply({
+			type: "SYNC_APPLY_ROSTER",
+			payload: {
+				vaultId: "a",
+				rosterJson: encodeRoster(roster("intruder")),
+				expectedGroupKey: "expired-group",
+			},
+		});
+		expect(JSON.stringify(await chrome.storage.local.get("sync.group:a"))).toBe(before);
+	});
+
 	it("does not sync when no vault is active", async () => {
 		stubChrome(seedTwoVaults(), {});
 		const sync = await loadSync();

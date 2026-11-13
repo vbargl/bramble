@@ -57,6 +57,7 @@ async function admitJoiner(
 	vaultId: string,
 	admission: Admission | undefined,
 	entryJson: string,
+	groupKey: string,
 ): Promise<void> {
 	try {
 		const entry = RosterEntrySchema.parse(JSON.parse(entryJson));
@@ -75,7 +76,7 @@ async function admitJoiner(
 					},
 				}
 			: entry;
-		await addToLocalRoster(vaultId, admitted);
+		await addToLocalRoster(vaultId, admitted, groupKey);
 	} catch (e) {
 		report(`sync: could not add the new device to the roster (${(e as Error).message})`);
 	}
@@ -179,8 +180,8 @@ export async function startEnrollInvite(opts: {
 			// two makes its read see this one rather than racing it.
 			onEnrolled: (entryJson) => {
 				void (async () => {
-					if (vaultId) await admitJoiner(vaultId, opts.admission, entryJson);
-					emit({ kind: "enrolled", entryJson });
+					if (vaultId) await admitJoiner(vaultId, opts.admission, entryJson, opts.groupKeyB64);
+					emit({ kind: "enrolled", entryJson, groupKey: opts.groupKeyB64 });
 					// Sync starts on unlock, and only for a vault already in a group. A first pairing
 					// makes the group, so start it now that the new device is in the roster.
 					await maybeStartRosterSync();

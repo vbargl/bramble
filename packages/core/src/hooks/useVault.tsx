@@ -1744,6 +1744,15 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 		async (password: string) => {
 			const { blob } = await readDecodedBlob();
 			const slot = await wrapPasswordSlot(password);
+			if (await storage.getMeta(syncKey("sync.group"))) {
+				// Persist offline intent first. A racing resume cannot rediscover the old group;
+				// stopSyncSpike cancels the transport. Failure aborts the password write.
+				await storage.removeMeta(syncKey("sync.group"));
+				await shell.stopSyncSpike();
+				await storage.removeMeta(syncKey("sync.group"));
+				await storage.removeMeta(syncKey("sync.admissionSalt"));
+				await storage.removeMeta(syncKey("sync.lastSyncedAt"));
+			}
 			const newBlob = upsertPasswordSlot(blob, slot);
 			await storage.writeVaultBlob(encodeVaultBlob(newBlob));
 			try {
@@ -1765,7 +1774,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			}
 			await refreshSlotMetadata();
 		},
-		[readDecodedBlob, wrapPasswordSlot, storage, crypto, refreshSlotMetadata, t],
+		[readDecodedBlob, wrapPasswordSlot, storage, crypto, refreshSlotMetadata, t, shell, syncKey],
 	);
 
 	/** Change the master password. Requires the vault unlocked; does not rotate the VEK. */
