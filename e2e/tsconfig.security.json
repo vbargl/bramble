@@ -14,6 +14,7 @@
 	"include": [
 		"desktop-link/fill-security.spec.ts",
 		"sync/admission-security.spec.ts",
-		"sync/recovery-security.spec.ts"
+		"sync/recovery-security.spec.ts",
+		"sync/enrollment-pin-security.spec.ts"
 	]
 }
