@@ -37,7 +37,14 @@ interface Harness {
 }
 
 function makePlatform(
-	over: { failVerify?: boolean; failWrite?: boolean; payload?: object; failReload?: boolean } = {},
+	over: {
+		failVerify?: boolean;
+		failWrite?: boolean;
+		payload?: object;
+		failReload?: boolean;
+		group?: boolean;
+		failStop?: boolean;
+	} = {},
 ): Harness {
 	const h: Harness = {
 		platform: null as unknown as Platform,
@@ -48,6 +55,7 @@ function makePlatform(
 		steps: [],
 		sealed: [],
 	};
+	let group = over.group ? { groupKey: "old-group" } : undefined;
 	const registry = { vaults: [{ id: "v1", label: "", createdAt: 1 }] };
 	// A blob with one password slot and some entries ciphertext, which is all rotation reads.
 	const blob = {
@@ -66,7 +74,13 @@ function makePlatform(
 	};
 	const storage = {
 		hasVaultHandle: vi.fn(async () => true),
-		getMeta: vi.fn(async (k: string) => (k === VAULT_REGISTRY_KEY ? registry : undefined)),
+		getMeta: vi.fn(async (k: string) =>
+			k === VAULT_REGISTRY_KEY ? registry : k.includes("sync.group") ? group : undefined,
+		),
+		removeMeta: vi.fn(async (key: string) => {
+			h.steps.push(`remove:${key}`);
+			if (key === "sync.group:v1") group = undefined;
+		}),
 		setMeta: vi.fn(async () => {}),
 		readVaultBlob: vi.fn(async () => new Uint8Array([1])),
 		writeVaultBlob: vi.fn(async () => {
@@ -136,7 +150,10 @@ function makePlatform(
 			setActiveVault: vi.fn(async () => {}),
 			getActiveVault: vi.fn(async () => "v1"),
 			flushPendingCornerCapture: vi.fn(async () => {}),
-			stopSyncSpike: vi.fn(async () => {}),
+			stopSyncSpike: vi.fn(async () => {
+				h.steps.push("stop-sync");
+				if (over.failStop) throw new Error("transport still active");
+			}),
 		},
 		clipboard: {},
 	} as unknown as Platform;
@@ -278,4 +295,75 @@ describe("rotateSecret", () => {
 		expect(h.rotated).toBe(0);
 		expect(h.writes).toBe(0);
 	});
+});
+
+it("leaves the old sync group before key replacement and requires fresh pairing", async () => {
+	const h = makePlatform({ group: true });
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.rotated).toBe(1);
+	expect(h.steps.indexOf("remove:sync.group:v1")).toBeLessThan(h.steps.indexOf("stop-sync"));
+	expect(h.steps.indexOf("stop-sync")).toBeLessThan(h.steps.indexOf("rotate"));
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+	expect(h.steps).toContain("remove:sync.admissionSalt:v1");
+});
+it("stops any transport before replacing the encryption key", async () => {
+	const h = makePlatform();
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.steps.indexOf("stop-sync")).toBeGreaterThanOrEqual(0);
+	expect(h.steps.indexOf("stop-sync")).toBeLessThan(h.steps.indexOf("rotate"));
+});
+it("leaves the old vault intact when stopping sync fails", async () => {
+	const h = makePlatform({ failStop: true, group: true });
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("hunter2")).rejects.toThrow(/transport still active/);
+	});
+	expect(h.rotated).toBe(0);
+	expect(h.writes).toBe(0);
+});
+
+it("forgets the biometric copy of the old key before rotation", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.biometric = {
+		disable: vi.fn(async () => {
+			h.steps.push("disable-biometric");
+		}),
+	} as unknown as NonNullable<Platform["biometric"]>;
+	const get = await actions(h);
+	await act(async () => {
+		await get().rotateSecret("hunter2");
+	});
+	expect(h.platform.biometric.disable).toHaveBeenCalledWith("v1");
+	expect(h.steps.indexOf("disable-biometric")).toBeLessThan(h.steps.indexOf("rotate"));
+});
+it("aborts before replacing the key if forgetting the biometric cache fails", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.biometric = {
+		disable: vi.fn(async () => {
+			throw new Error("keychain unavailable");
+		}),
+	} as unknown as NonNullable<Platform["biometric"]>;
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("hunter2")).rejects.toThrow(/keychain/);
+	});
+	expect(h.rotated).toBe(0);
+	expect(h.writes).toBe(0);
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+});
+it("does not disconnect the group for an incorrect password", async () => {
+	const h = makePlatform({ group: true });
+	h.platform.crypto.verifyPasswordSlot = vi.fn(async () => false);
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().rotateSecret("wrong")).rejects.toThrow(/incorrect/);
+	});
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeDefined();
+	expect(h.steps).not.toContain("stop-sync");
 });

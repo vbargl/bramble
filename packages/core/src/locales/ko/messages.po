@@ -6,6 +6,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: @lingui/cli\n"
 "Language: ko\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
 
 #. placeholder {0}: result.warnings.length - 8
 #: packages/core/src/app/screens/Import/ImportShell.tsx
@@ -1376,6 +1382,10 @@ msgstr "연결 해제"
 #: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 msgid "Disconnect this browser"
 msgstr "이 브라우저 연결 해제"
+
+#: packages/core/src/hooks/useVault.tsx
+#~ msgid "Disconnect this device from sync before rotating its vault key."
+#~ msgstr "보관함 키를 변경하기 전에 이 기기의 동기화를 해제하세요."
 
 #: packages/core/src/hooks/useVault.tsx
 msgid "Disconnect this device from sync before turning off the master password."

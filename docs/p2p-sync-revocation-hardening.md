@@ -471,3 +471,20 @@ Checklist before flipping `rosterRequireSignatures` / `rosterRequireAdmission` -
 4. [ ] `rosterRequireSignatures` may flip before `rosterRequireAdmission` (`sigKey` pinning is already
    done, so that flip is sound as coded) - but on its own it closes impersonation only, not
    rogue-injection. `rosterRequireAdmission` is the one with teeth.
+
+### Manual recovery boundary
+
+Vault-key rotation intentionally does not distribute the replacement key over the old sync
+group. After password verification and attachment preflight, it removes the local group,
+awaits transport shutdown, clears the admission salt/last-sync marker, and disables the local
+biometric key cache before key replacement. Trusted peers must be paired again explicitly.
+A shutdown/cache error aborts key replacement and leaves sync disconnected; a wrong password
+does not disconnect anything. Rotation failure restores the backup and locks the vault, but
+does not restore the old sync group or biometric cache.
+
+This remains a gated recovery implementation, not complete compromise recovery. Attachment
+key rewrapping is not implemented, and rotation refuses a vault with attachment records.
+The default `rotateVaultSecret` flag remains off. Changing a password alone only replaces a
+password slot and does not evict a peer that already knows the VEK. Old copies of the vault
+remain readable using keys already stolen, and compromised site credentials must be replaced
+separately. Native browser-link authorization is a separate trust relationship.
