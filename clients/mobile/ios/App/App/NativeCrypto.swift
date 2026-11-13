@@ -123,7 +123,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 	}
 
 	@objc func generateVek(_ call: CAPPluginCall) {
-		do { call.resolve(["value": try App.generateVek()]) } catch { fail(call, error) }
+		do { try App.generateVekInPlace(); call.resolve() } catch { fail(call, error) }
 	}
 
 	@objc func unlockWithVek(_ call: CAPPluginCall) {
@@ -136,7 +136,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 	}
 
 	@objc func rotateVek(_ call: CAPPluginCall) {
-		do { call.resolve(["value": try App.rotateVek()]) } catch { fail(call, error) }
+		do { try App.rotateVekInPlace(); call.resolve() } catch { fail(call, error) }
 	}
 
 	@objc func generateSalt(_ call: CAPPluginCall) {
