@@ -356,6 +356,7 @@ pub fn run() {
             sync_crypto::sync_handshake_start_initiator,
             sync_crypto::sync_handshake_start_responder,
             sync_crypto::sync_handshake_enroll_initiator,
+            sync_crypto::sync_handshake_enroll_initiator_pinned,
             sync_crypto::sync_handshake_enroll_responder,
             sync_crypto::sync_handshake_read,
             sync_crypto::sync_handshake_encrypt,

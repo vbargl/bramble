@@ -99,6 +99,13 @@ frame already carries `PROTOCOL_VERSION` (`desktop-link.ts:277`) for the "update
 
 ## 3. Sync enrollment: check the inviter's key before message 3
 
+**Implemented on this branch.** The pinned initiator checks after message 2 inside Rust before
+producing message 3. Shared enrollment refuses missing pins before starting a handshake. The
+unpinned API remains for the separate desktop-link ceremony. Native Rust and shared enrollment
+regression tests cover this; host-generated Swift/Kotlin bindings expose the new call. Native
+Android/iOS application builds and device acceptance still need their platform toolchains.
+The following paragraphs record the original defect and plan.
+
 This is advisory item 5, which the advisory lists as fixed and is not. `read()` in
 `packages/core-rust/src/handshake.rs:107-131` reads message 2 and immediately writes message 3.
 Message 3 carries the joiner's static key encrypted under keys any responder can derive (from `ee`

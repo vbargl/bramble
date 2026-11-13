@@ -203,6 +203,11 @@ interface NativeCryptoPlugin {
 		localPrivB64: string;
 		pskB64: string;
 	}): Promise<{ sessionId: number; message: string }>;
+	handshakeEnrollInitiatorPinned(o: {
+		localPrivB64: string;
+		pskB64: string;
+		expectedRemoteB64: string;
+	}): Promise<{ sessionId: number; message: string }>;
 	handshakeEnrollResponder(o: { localPrivB64: string; pskB64: string }): Promise<{ value: number }>;
 	handshakeRead(o: {
 		sessionId: number;
@@ -428,6 +433,8 @@ export const nativeSyncCrypto = {
 		(await Native.handshakeStartResponder({ localPrivB64: privB64, remotePubB64 })).value,
 	handshake_enroll_initiator: (privB64: string, pskB64: string) =>
 		Native.handshakeEnrollInitiator({ localPrivB64: privB64, pskB64 }),
+	handshake_enroll_initiator_pinned: (privB64: string, pskB64: string, expectedRemoteB64: string) =>
+		Native.handshakeEnrollInitiatorPinned({ localPrivB64: privB64, pskB64, expectedRemoteB64 }),
 	handshake_enroll_responder: async (privB64: string, pskB64: string) =>
 		(await Native.handshakeEnrollResponder({ localPrivB64: privB64, pskB64 })).value,
 	handshake_read: (sessionId: number, messageB64: string) =>

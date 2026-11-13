@@ -45,6 +45,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 		CAPPluginMethod(name: "handshakeStartInitiator", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeStartResponder", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEnrollInitiator", returnType: CAPPluginReturnPromise),
+		CAPPluginMethod(name: "handshakeEnrollInitiatorPinned", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEnrollResponder", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeRead", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEncrypt", returnType: CAPPluginReturnPromise),
@@ -410,6 +411,14 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 		guard let priv = str(call, "localPrivB64"), let psk = str(call, "pskB64") else { return }
 		do {
 			let s = try App.handshakeEnrollInitiator(localPrivB64: priv, pskB64: psk)
+			call.resolve(["sessionId": Int(s.sessionId), "message": s.message])
+		} catch { fail(call, error) }
+	}
+
+	@objc func handshakeEnrollInitiatorPinned(_ call: CAPPluginCall) {
+		guard let priv = str(call, "localPrivB64"), let psk = str(call, "pskB64"), let expectedRemote = str(call, "expectedRemoteB64") else { return }
+		do {
+			let s = try App.handshakeEnrollInitiatorPinned(localPrivB64: priv, pskB64: psk, expectedRemoteB64: expectedRemote)
 			call.resolve(["sessionId": Int(s.sessionId), "message": s.message])
 		} catch { fail(call, error) }
 	}

@@ -83,6 +83,16 @@ export const desktopSyncCrypto = {
 		}),
 	handshake_enroll_initiator: (privB64: string, pskB64: string): Promise<StartResult> =>
 		invoke("sync_handshake_enroll_initiator", { localPrivB64: privB64, pskB64 }),
+	handshake_enroll_initiator_pinned: (
+		privB64: string,
+		pskB64: string,
+		expectedRemoteB64: string,
+	): Promise<StartResult> =>
+		invoke("sync_handshake_enroll_initiator_pinned", {
+			localPrivB64: privB64,
+			pskB64,
+			expectedRemoteB64,
+		}),
 	handshake_enroll_responder: (privB64: string, pskB64: string): Promise<number> =>
 		invoke("sync_handshake_enroll_responder", { localPrivB64: privB64, pskB64 }),
 	handshake_read: (sessionId: number, messageB64: string): Promise<ReadResult> =>

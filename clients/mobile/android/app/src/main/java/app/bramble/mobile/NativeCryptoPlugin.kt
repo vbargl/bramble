@@ -461,6 +461,17 @@ class NativeCryptoPlugin : Plugin() {
     }
 
     @PluginMethod
+    fun handshakeEnrollInitiatorPinned(call: PluginCall) {
+        val priv = str(call, "localPrivB64") ?: return
+        val psk = str(call, "pskB64") ?: return
+        val expectedRemote = str(call, "expectedRemoteB64") ?: return
+        call.runCrypto {
+            val s = uniffi.vault_crypto.handshakeEnrollInitiatorPinned(priv, psk, expectedRemote)
+            call.resolve(JSObject().put("sessionId", s.sessionId.toLong()).put("message", s.message))
+        }
+    }
+
+    @PluginMethod
     fun handshakeEnrollResponder(call: PluginCall) {
         val priv = str(call, "localPrivB64") ?: return
         val psk = str(call, "pskB64") ?: return
