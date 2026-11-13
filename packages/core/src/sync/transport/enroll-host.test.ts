@@ -62,6 +62,9 @@ const sess: Session = { sessionId: 1, remoteStatic: "joinerpub" };
 
 const ownEntry: RosterEntry = {
 	id: "joiner",
+	sigKey: "joiner-signing-key",
+	sig: "signed",
+	admissionKey: "joiner-authority",
 	publicKey: "joinerpub",
 	label: "Joiner",
 	addedAt: 0,

@@ -96,10 +96,14 @@ export const syncTargetVaultId = activeVaultId;
  * A CRDT union, so it never revokes an existing device, and idempotent with the same write from
  * the UI: the entry is identical and the merge is order-independent.
  */
-export async function addToLocalRoster(vaultId: string, device: RosterEntry): Promise<void> {
+export async function addToLocalRoster(
+	vaultId: string,
+	device: RosterEntry,
+	expectedGroupKey?: string,
+): Promise<void> {
 	const key = syncKeyFor(GROUP_KEY, vaultId);
 	const group = await desktopStorage.getMeta<GroupConfig>(key);
-	if (!group) return; // no group to add to; the invite was for a vault that has since gone
+	if (!group || (expectedGroupKey !== undefined && group.groupKey !== expectedGroupKey)) return; // no group to add to; the invite was for a vault that has since gone
 	if (!mayEnroll(group.roster, device)) return;
 	await desktopStorage.setMeta(key, { ...group, roster: addDevice(group.roster, device) });
 	emit({ kind: "roster" });

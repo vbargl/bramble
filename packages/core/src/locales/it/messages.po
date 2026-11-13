@@ -896,6 +896,10 @@ msgstr "Cambiare la password principale"
 msgid "Changed on two devices before they synced"
 msgstr "Modificato su due dispositivi prima della sincronizzazione"
 
+#: packages/core/src/app/screens/Settings/components/MasterPasswordSection.tsx
+msgid "Changing this password disconnects this device from sync. Pair trusted devices again afterward."
+msgstr "La modifica di questa password disconnette questo dispositivo dalla sincronizzazione. Associa nuovamente i dispositivi attendibili in seguito."
+
 #: packages/core/src/app/screens/Settings/components/UpdatesSection.tsx
 msgid "Check"
 msgstr "Controllare"

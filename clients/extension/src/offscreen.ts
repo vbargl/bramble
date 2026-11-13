@@ -33,10 +33,10 @@ const chromeBridge: SyncBridge = {
 		const r = await api.runtime.sendMessage({ type: "SYNC_LOCAL_ROSTER", payload: { vaultId } });
 		return r?.ok && typeof r.data === "string" ? r.data : "";
 	},
-	pushRemoteRoster: async (vaultId, rosterJson) => {
+	pushRemoteRoster: async (vaultId, rosterJson, expectedGroupKey) => {
 		const r = await api.runtime.sendMessage({
 			type: "SYNC_APPLY_ROSTER",
-			payload: { vaultId, rosterJson },
+			payload: { vaultId, rosterJson, expectedGroupKey },
 		});
 		if (!r?.ok) throw new Error(r?.error ?? "roster merge failed");
 	},

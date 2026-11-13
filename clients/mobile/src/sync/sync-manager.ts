@@ -304,7 +304,7 @@ export async function startEnrollInvite(opts: {
 		onEnrolled: (entryJson) => {
 			void (async () => {
 				if (vaultId) await admitJoiner(vaultId, opts.admission, entryJson);
-				emit({ kind: "enrolled", entryJson });
+				emit({ kind: "enrolled", entryJson, groupKey: opts.groupKeyB64 });
 				await maybeStartRosterSync();
 			})();
 		},

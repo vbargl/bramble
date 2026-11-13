@@ -788,6 +788,10 @@ msgstr "마스터 비밀번호 변경"
 msgid "Changed on two devices before they synced"
 msgstr "동기화되기 전에 두 기기에서 변경됨"
 
+#: packages/core/src/app/screens/Settings/components/MasterPasswordSection.tsx
+msgid "Changing this password disconnects this device from sync. Pair trusted devices again afterward."
+msgstr "이 비밀번호를 변경하면 이 기기의 동기화 연결이 해제됩니다. 이후 신뢰할 수 있는 기기를 다시 페어링하세요."
+
 #: packages/core/src/app/screens/Settings/components/UpdatesSection.tsx
 msgid "Check"
 msgstr "확인"

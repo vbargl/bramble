@@ -231,6 +231,14 @@ export function MasterPasswordSection() {
 
 			{formMode && (
 				<form className="ml-12 space-y-3 pt-1" onSubmit={handleSubmit(onSubmit)} noValidate>
+					{formMode === "change" && inSyncGroup && (
+						<p role="note" className="text-xs text-muted-foreground">
+							<Trans>
+								Changing this password disconnects this device from sync. Pair trusted devices again
+								afterward.
+							</Trans>
+						</p>
+					)}
 					{formError && (
 						<div
 							ref={formErrorRef}

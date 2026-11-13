@@ -39,6 +39,27 @@ async function signOwnEntry(shell: ShellAdapter, entry: RosterEntry): Promise<Ro
 	return signRosterEntry(entry, sigKey, shell.signRoster);
 }
 
+/** Every new member's password authority is fixed during the approved pairing ceremony.
+ * The salt is local public metadata, independent of the unlock-slot salt. */
+async function admissionEntry(
+	shell: ShellAdapter,
+	entry: RosterEntry,
+	password: string,
+	salt: string,
+): Promise<RosterEntry> {
+	if (
+		!shell.syncAdmissionPublicKey ||
+		!shell.syncAdmissionSign ||
+		!shell.syncSigningPublicKey ||
+		!shell.signRoster
+	)
+		throw new Error("Update Bramble on this device before pairing.");
+	return signOwnEntry(shell, {
+		...entry,
+		admissionKey: await shell.syncAdmissionPublicKey(password, salt),
+	});
+}
+
 /** The group no longer knows this device by its current key (its own entry is gone or carries an
  * old one), so it can't sync, and can't invite either: a joiner would copy the stale entry. */
 export class UnrecognizedDeviceError extends Error {
@@ -129,78 +150,64 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 
 	// The group key is stable (the room + the group identity); generated once with a
 	// roster seeded by this device, then reused. This vault's VEK is the group VEK.
-	const ensureGroup = useCallback(async (): Promise<string> => {
-		const existing = await storage.getMeta<{ groupKey: string }>(syncKey("sync.group"));
-		if (existing?.groupKey) return existing.groupKey;
-		const inviterPub = await shell.syncDevicePublicKey();
-		const clock = await ensureClock();
-		const hlc = clock.send();
-		const groupKey = randomKeyB64();
-		const entry = await signOwnEntry(shell, {
-			id: hlc.node,
-			publicKey: inviterPub,
-			label: shell.deviceLabel?.() ?? defaultDeviceLabel(),
-			addedAt: Date.now(),
-			hlc,
-		});
-		const roster = addDevice(emptyRoster(), entry);
-		await storage.setMeta(syncKey("sync.group"), { groupKey, roster });
-		return groupKey;
-	}, [storage, syncKey, shell, ensureClock]);
-
-	/**
-	 * Merge an updated own-entry into the stored roster, re-reading it first.
-	 *
-	 * The read-modify-write window spans a signing round trip to the host, and the background's
-	 * roster merge writes the same key. Writing back a snapshot taken before that trip drops
-	 * whatever landed in between (a peer's entry, a revocation), since the merge can only keep what
-	 * is in one of its two inputs. Re-reading closes all but an instant of that. It does NOT protect
-	 * a concurrent change to THIS entry, which is last-writer-wins and needs re-signing over the new
-	 * body; see ensureOwnEntrySigned, the one path where that race is worth the extra round trip.
-	 */
-	const mergeOwnEntry = useCallback(
-		async (entry: RosterEntry): Promise<void> => {
-			const fresh = await storage.getMeta<{ groupKey: string; roster: RosterPayload }>(
-				syncKey("sync.group"),
+	const ensureGroup = useCallback(
+		async (password: string): Promise<string> => {
+			const existing = await storage.getMeta<{ groupKey: string }>(syncKey("sync.group"));
+			if (existing?.groupKey) return existing.groupKey;
+			const inviterPub = await shell.syncDevicePublicKey();
+			const clock = await ensureClock();
+			const hlc = clock.send();
+			const groupKey = randomKeyB64();
+			const saltB64 = randomKeyB64();
+			const entry = await admissionEntry(
+				shell,
+				{
+					id: hlc.node,
+					publicKey: inviterPub,
+					label: shell.deviceLabel?.() ?? defaultDeviceLabel(),
+					addedAt: Date.now(),
+					hlc,
+				},
+				password,
+				saltB64,
 			);
-			if (!fresh) return; // the group went away underneath us (disconnected mid-flight)
-			await storage.setMeta(syncKey("sync.group"), {
-				groupKey: fresh.groupKey,
-				roster: addDevice(fresh.roster, entry),
-			});
+			await storage.setMeta(syncKey("sync.admissionSalt"), saltB64);
+			const roster = addDevice(emptyRoster(), entry);
+			await storage.setMeta(syncKey("sync.group"), { groupKey, roster });
+			return groupKey;
 		},
-		[storage, syncKey],
+		[storage, syncKey, shell, ensureClock],
 	);
 
-	// Publish this device's admission key on its own roster entry, derived from the re-entered master
-	// password + this device's password-slot salt (Item A rogue-injection close), and return the
-	// context to admission-sign the joiner. The admissionKey is deterministic from (password, salt),
-	// so a repeat invite re-derives the same value and is a no-op. Returns null on a host without
-	// password-authority admission: the joiner's new id is then tolerated only through phase 1.
+	// Re-derive the authority fixed at pairing; never replace a peer-pinned authority via gossip.
+	// Legacy groups may use the password-slot salt only when it reproduces their existing key.
 	const publishAdmissionKey = useCallback(
 		async (
 			inviterPub: string,
 			password: string,
 			pwSlot: PasswordSlot,
 		): Promise<AdmissionContext | null> => {
-			if (!shell.syncAdmissionPublicKey || !shell.syncAdmissionSign) return null;
-			const saltB64 = bytesToBase64(pwSlot.salt);
+			if (!shell.syncAdmissionPublicKey || !shell.syncAdmissionSign)
+				throw new Error("Update Bramble on this device before pairing.");
+			const saltB64 =
+				(await storage.getMeta<string>(syncKey("sync.admissionSalt"))) ??
+				bytesToBase64(pwSlot.salt);
 			const admissionKey = await shell.syncAdmissionPublicKey(password, saltB64);
 			const group = await storage.getMeta<{ groupKey: string; roster: RosterPayload }>(
 				syncKey("sync.group"),
 			);
 			const own = group?.roster.devices.find((d) => d.publicKey === inviterPub);
 			if (!group || !own) return null;
-			// Re-stamp + re-sign our own entry so the added admissionKey wins the merge (the signature
-			// covers it via canonicalRosterEntry). Skipped when already published (deterministic key).
-			if (own.admissionKey !== admissionKey) {
-				const hlc = (await ensureClock()).send();
-				const updated = await signOwnEntry(shell, { ...own, admissionKey, hlc });
-				await mergeOwnEntry(updated);
+			// Missing or changed authority requires a new, explicitly approved pairing.
+			if (!own.sigKey || !own.sig || own.admissionKey !== admissionKey) {
+				throw new Error(
+					"Disconnect and re-pair this device before adding another device. Its admission authority is missing or has changed.",
+				);
 			}
+			await storage.setMeta(syncKey("sync.admissionSalt"), saltB64);
 			return { password, saltB64, adminId: own.id };
 		},
-		[shell, storage, syncKey, ensureClock, mergeOwnEntry],
+		[shell, storage, syncKey],
 	);
 
 	/**
@@ -241,7 +248,7 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 			if (!signed.sigKey) return; // host declined to sign; leave the entry as it was
 			const fresh = await readGroup();
 			const current = fresh?.roster.devices.find((d) => d.publicKey === pub);
-			if (!fresh || !current) return;
+			if (!fresh || fresh.groupKey !== group.groupKey || !current) return;
 			if (canonicalRosterEntry(current) === canonicalRosterEntry(own)) {
 				await storage.setMeta(syncKey("sync.group"), {
 					groupKey: fresh.groupKey,
@@ -270,7 +277,7 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 			// Persist + propagate (via the pairing code) both relays so a joiner adopts them.
 			await storage.setMeta("sync.relay", relayUrl);
 			await storage.setMeta("sync.iceUrl", iceUrl ?? "");
-			const groupKey = await ensureGroup();
+			const groupKey = await ensureGroup(password);
 			const inviterPub = await shell.syncDevicePublicKey();
 			// A joiner copies our roster. If our own entry is gone or carries an old key, every device
 			// paired from here turns us away too: the pairing works and sync never does.
@@ -304,7 +311,7 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 			// When the device finishes joining, admission-sign then add its entry to ours (symmetric rosters).
 			enrollUnsubRef.current?.();
 			enrollUnsubRef.current = shell.onSyncEvent((ev) => {
-				if (ev.kind !== "enrolled" || !ev.entryJson) return;
+				if (ev.kind !== "enrolled" || !ev.entryJson || ev.groupKey !== groupKey) return;
 				let entry: RosterEntry;
 				try {
 					entry = RosterEntrySchema.parse(JSON.parse(ev.entryJson));
@@ -316,7 +323,7 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 					const cur = await storage.getMeta<{ groupKey: string; roster: RosterPayload }>(
 						syncKey("sync.group"),
 					);
-					if (!cur || !mayEnroll(cur.roster, admitted)) return;
+					if (!cur || cur.groupKey !== groupKey || !mayEnroll(cur.roster, admitted)) return;
 					await storage.setMeta(syncKey("sync.group"), {
 						groupKey: cur.groupKey,
 						roster: addDevice(cur.roster, admitted),
@@ -388,13 +395,19 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 			const ownPub = await shell.syncDevicePublicKey();
 			const clock = await ensureClock();
 			const hlc = clock.send();
-			const ownEntry = await signOwnEntry(shell, {
-				id: hlc.node,
-				publicKey: ownPub,
-				label: shell.deviceLabel?.() ?? defaultDeviceLabel(),
-				addedAt: Date.now(),
-				hlc,
-			});
+			const admissionSalt = randomKeyB64();
+			const ownEntry = await admissionEntry(
+				shell,
+				{
+					id: hlc.node,
+					publicKey: ownPub,
+					label: shell.deviceLabel?.() ?? defaultDeviceLabel(),
+					addedAt: Date.now(),
+					hlc,
+				},
+				method.password,
+				admissionSalt,
+			);
 
 			const joined = new Promise<{ vaultBlobB64: string; roster: RosterPayload }>(
 				(resolve, reject) => {
@@ -430,6 +443,7 @@ export function useSyncEnrollment(deps: SyncEnrollmentDeps): SyncEnrollment {
 				throw e;
 			}
 			await storage.writeVaultBlob(base64ToBytes(vaultBlobB64));
+			await storage.setMeta(syncKey("sync.admissionSalt"), admissionSalt);
 			await storage.setMeta(syncKey("sync.group"), {
 				groupKey: code.groupKey,
 				roster: addDevice(roster, ownEntry),

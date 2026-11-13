@@ -1,7 +1,7 @@
 import { parseRegistry, VAULT_REGISTRY_KEY } from "../vault/vault-registry";
 import type { RosterPayload } from "./roster";
 
-// Per-vault sync metadata keys. Five of the seven `sync.*` keys belong to one vault's sync
+// Per-vault sync metadata keys. The per-vault keys belong to one vault's sync
 // identity (its group + this device's roster membership); `sync.relay` / `sync.iceUrl` are
 // device-global endpoints and are NOT namespaced. Every vault's sync value is stored under a
 // key namespaced by its id (`<base>:<vaultId>`). See docs/multiple-vaults.md.
@@ -9,6 +9,7 @@ import type { RosterPayload } from "./roster";
 /** The base sync keys that are per-vault; each is stored at `<base>:<vaultId>`. */
 export const PER_VAULT_SYNC_KEYS = [
 	"sync.group",
+	"sync.admissionSalt",
 	"sync.lastSyncedAt",
 	"sync.deviceId",
 	"sync.deviceKeypair",

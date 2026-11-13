@@ -37,7 +37,14 @@ interface Harness {
 }
 
 function makePlatform(
-	over: { failVerify?: boolean; failWrite?: boolean; payload?: object; failReload?: boolean } = {},
+	over: {
+		failVerify?: boolean;
+		failWrite?: boolean;
+		payload?: object;
+		failReload?: boolean;
+		group?: boolean;
+		failStop?: boolean;
+	} = {},
 ): Harness {
 	const h: Harness = {
 		platform: null as unknown as Platform,
@@ -48,6 +55,7 @@ function makePlatform(
 		steps: [],
 		sealed: [],
 	};
+	let group = over.group ? { groupKey: "old-group" } : undefined;
 	const registry = { vaults: [{ id: "v1", label: "", createdAt: 1 }] };
 	// A blob with one password slot and some entries ciphertext, which is all rotation reads.
 	const blob = {
@@ -66,7 +74,13 @@ function makePlatform(
 	};
 	const storage = {
 		hasVaultHandle: vi.fn(async () => true),
-		getMeta: vi.fn(async (k: string) => (k === VAULT_REGISTRY_KEY ? registry : undefined)),
+		getMeta: vi.fn(async (k: string) =>
+			k === VAULT_REGISTRY_KEY ? registry : k.includes("sync.group") ? group : undefined,
+		),
+		removeMeta: vi.fn(async (k: string) => {
+			h.steps.push(`remove:${k}`);
+			if (k.includes("sync.group")) group = undefined;
+		}),
 		setMeta: vi.fn(async () => {}),
 		readVaultBlob: vi.fn(async () => new Uint8Array([1])),
 		writeVaultBlob: vi.fn(async () => {
@@ -136,7 +150,10 @@ function makePlatform(
 			setActiveVault: vi.fn(async () => {}),
 			getActiveVault: vi.fn(async () => "v1"),
 			flushPendingCornerCapture: vi.fn(async () => {}),
-			stopSyncSpike: vi.fn(async () => {}),
+			stopSyncSpike: vi.fn(async () => {
+				h.steps.push("stop");
+				if (over.failStop) throw new Error("stop failed");
+			}),
 		},
 		clipboard: {},
 	} as unknown as Platform;
@@ -278,4 +295,26 @@ describe("rotateSecret", () => {
 		expect(h.rotated).toBe(0);
 		expect(h.writes).toBe(0);
 	});
+});
+
+it("leaves the old sync group before changing a master password", async () => {
+	const h = makePlatform({ group: true });
+	const get = await actions(h);
+	await act(async () => {
+		await get().changeMasterPassword("new-password");
+	});
+	expect(h.steps.findIndex((s) => s.startsWith("remove:sync.group"))).toBeLessThan(
+		h.steps.indexOf("stop"),
+	);
+	expect(h.steps.indexOf("stop")).toBeLessThan(h.steps.indexOf("write"));
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
+});
+it("does not write a new credential if the old group transport cannot stop", async () => {
+	const h = makePlatform({ group: true, failStop: true });
+	const get = await actions(h);
+	await act(async () => {
+		await expect(get().changeMasterPassword("new-password")).rejects.toThrow(/stop failed/);
+	});
+	expect(h.writes).toBe(0);
+	expect(await h.platform.storage.getMeta("sync.group:v1")).toBeUndefined();
 });

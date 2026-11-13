@@ -82,7 +82,11 @@ export const ApplyRemoteMsgSchema = z.object({ vaultId: z.string(), payloadJson:
 export type ApplyRemoteMsg = z.infer<typeof ApplyRemoteMsgSchema>;
 
 /** offscreen -> background: a peer's roster (JSON) to merge locally (revocations propagate). */
-export const ApplyRosterMsgSchema = z.object({ vaultId: z.string(), rosterJson: z.string() });
+export const ApplyRosterMsgSchema = z.object({
+	vaultId: z.string(),
+	rosterJson: z.string(),
+	expectedGroupKey: z.string().optional(),
+});
 
 /** offscreen -> background: which vault a pinned sync callback is for. */
 export const SyncVaultMsgSchema = z.object({ vaultId: z.string() });
@@ -141,6 +145,7 @@ export const SyncEventMsgSchema = z.object({
 	vaultBlobB64: z.string().optional(),
 	roster: RosterPayloadSchema.optional(),
 	entryJson: z.string().optional(),
+	groupKey: z.string().optional(),
 	message: z.string().optional(),
 	sas: z.string().optional(),
 	sasEmoji: z.array(z.number().int()).optional(),

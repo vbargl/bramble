@@ -24,11 +24,10 @@ import { authenticatePeer, currentRoster, inRoster, type RosterHandshakeWasm } f
 import { type MeshSession, type PeerSource, startMeshSession } from "./peer-session";
 import { recvSecure, sendSecure } from "./secure-channel";
 
-/** Ed25519 roster-entry verification (Item A). Optional: absent on hosts not yet wired for roster
- * signing (e.g. an older mobile native-crypto shim), where verification degrades to
- * verify-if-present (pass-through). See docs/p2p-sync-revocation-hardening.md. */
+/** Required Ed25519 roster verification. Older/miswired hosts fail closed rather than
+ * authorizing unsigned mutations. See docs/p2p-sync-revocation-hardening.md. */
 interface RosterVerifyWasm {
-	roster_verify?(publicB64: string, message: string, sigB64: string): Awaitable<boolean>;
+	roster_verify(publicB64: string, message: string, sigB64: string): Awaitable<boolean>;
 }
 
 export type RosterSyncWasm = NostrWasm & RosterHandshakeWasm & RosterVerifyWasm;
@@ -128,9 +127,8 @@ async function applyRoster(
 
 /** Verify a gossiped roster before it is pushed to merge (Item A): drop entries that fail Ed25519
  * verification or violate the TOFU id->key binding, so a compromised member cannot impersonate
- * another device. Returns the cleaned roster JSON, or null if it cannot be parsed. Degrades to
- * pass-through when the host is not wired for verification (roster_verify absent), preserving
- * verify-if-present. Exported for tests. See docs/p2p-sync-revocation-hardening.md. */
+ * another device. Returns cleaned JSON, or null for malformed input or a missing verifier.
+ * Exported for tests. See docs/p2p-sync-revocation-hardening.md. */
 export async function verifyRosterEnvelope(
 	opts: Pick<RosterSyncOptions, "roster" | "fetchLocalRoster" | "wasm">,
 	rosterJson: string,
@@ -143,7 +141,7 @@ export async function verifyRosterEnvelope(
 		return null;
 	}
 	const rosterVerify = opts.wasm.roster_verify;
-	if (!rosterVerify) return rosterJson; // host not wired for verification: verify-if-present passes.
+	if (!rosterVerify) return null; // Missing crypto capability must never authorize roster mutations.
 	const current = local ?? (await currentRoster(opts));
 	const valid = new Set<RosterEntry>(); // valid self-signature (keyed by object identity)
 	const validAdmission = new Set<RosterEntry>(); // valid admission by a current member
@@ -160,7 +158,7 @@ export async function verifyRosterEnvelope(
 		// published admission key. A compromised member without the password can't produce one.
 		if (entry.admission) {
 			const admitter = current.devices.find((d) => d.id === entry.admission?.by);
-			if (admitter?.admissionKey) {
+			if (admitter?.admissionKey && !current.revoked.some((t) => t.id === admitter.id)) {
 				try {
 					if (
 						await rosterVerify(

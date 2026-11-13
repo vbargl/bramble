@@ -662,6 +662,17 @@ describe("addToLocalRoster", () => {
 		hlc: { wall: 1, counter: 0, node: id },
 	});
 
+	it("does not admit an old invite into a replacement group", async () => {
+		h.meta.set(`sync.group:${VAULT_A}`, {
+			groupKey: "replacement",
+			roster: { devices: [member("laptop", "laptoppub")], revoked: [] },
+		});
+		const before = JSON.stringify(h.meta.get(`sync.group:${VAULT_A}`));
+		const mod = await loadRoster();
+		await mod.addToLocalRoster(VAULT_A, member("phone", "phonepub"), "old-group");
+		expect(JSON.stringify(h.meta.get(`sync.group:${VAULT_A}`))).toBe(before);
+	});
+
 	it("does not let a joiner take a member's id under another key", async () => {
 		const laptop = member("laptop", "laptoppub");
 		h.meta.set(`sync.group:${VAULT_A}`, {

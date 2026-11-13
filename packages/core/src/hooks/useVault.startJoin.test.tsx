@@ -245,6 +245,10 @@ describe("a join handed over by the desktop app", () => {
 		const { platform } = makePlatform();
 		Object.assign(platform.shell, {
 			syncDevicePublicKey: vi.fn(async () => "bWU="),
+			syncSigningPublicKey: vi.fn(async () => "signing-key"),
+			signRoster: vi.fn(async () => "signed"),
+			syncAdmissionPublicKey: vi.fn(async () => "joining-authority"),
+			syncAdmissionSign: vi.fn(async () => "admitted"),
 			onSyncEvent: vi.fn(() => () => {}),
 		});
 		Object.assign(platform.storage, { removeMeta: vi.fn(async () => {}) });
@@ -259,7 +263,14 @@ describe("a join handed over by the desktop app", () => {
 		await act(async () => {});
 
 		expect(platform.shell.startEnrollJoin).toHaveBeenCalledWith(
-			expect.objectContaining({ viaLink: true }),
+			expect.objectContaining({
+				viaLink: true,
+				ownEntry: expect.objectContaining({
+					admissionKey: "joining-authority",
+					sigKey: "signing-key",
+					sig: "signed",
+				}),
+			}),
 		);
 	});
 });

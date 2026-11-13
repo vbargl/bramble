@@ -896,6 +896,10 @@ msgstr "Change your master password"
 msgid "Changed on two devices before they synced"
 msgstr "Changed on two devices before they synced"
 
+#: packages/core/src/app/screens/Settings/components/MasterPasswordSection.tsx
+msgid "Changing this password disconnects this device from sync. Pair trusted devices again afterward."
+msgstr "Changing this password disconnects this device from sync. Pair trusted devices again afterward."
+
 #: packages/core/src/app/screens/Settings/components/UpdatesSection.tsx
 msgid "Check"
 msgstr "Check"

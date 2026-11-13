@@ -46,6 +46,9 @@ function roster(ownPub: string): RosterPayload {
 				id: "device-1",
 				publicKey: ownPub,
 				label: "This device",
+				sigKey: "signing-key",
+				sig: "c2ln",
+				admissionKey: "authority",
 				addedAt: 1,
 				hlc: { wall: 1, counter: 0, node: "device-1" },
 			},
@@ -63,7 +66,7 @@ function makePlatform(ownPub: string) {
 			if (k === "sync.deviceId:v1") return "device-1";
 			return undefined;
 		}),
-		setMeta: vi.fn(async () => {}),
+		setMeta: vi.fn(async (_key: string, _value: unknown) => {}),
 		readVaultBlob: vi.fn(async () => new Uint8Array([1])),
 		writeVaultBlob: vi.fn(async () => {}),
 		restoreVaultFromBackup: vi.fn(async () => false),
@@ -76,17 +79,24 @@ function makePlatform(ownPub: string) {
 		decryptWithVek: vi.fn(async () => JSON.stringify({ entries: [], tombstones: [] })),
 	};
 	const startEnrollInvite = vi.fn(async () => {});
-	const syncListeners: ((ev: { kind: string; entryJson?: string }) => void)[] = [];
+	const syncListeners: ((ev: { kind: string; entryJson?: string; groupKey?: string }) => void)[] =
+		[];
 	const shell = {
+		syncSigningPublicKey: vi.fn(async () => "signing-key"),
+		signRoster: vi.fn(async () => "c2ln"),
+		syncAdmissionPublicKey: vi.fn(async () => "authority"),
+		syncAdmissionSign: vi.fn(async () => "admitted"),
 		setActiveVault: vi.fn(async () => {}),
 		getActiveVault: vi.fn(async () => "v1"),
 		flushPendingCornerCapture: vi.fn(async () => {}),
 		stopSyncSpike: vi.fn(async () => {}),
 		syncDevicePublicKey: vi.fn(async () => CURRENT_PUB),
-		onSyncEvent: vi.fn((cb: (ev: { kind: string; entryJson?: string }) => void) => {
-			syncListeners.push(cb);
-			return () => {};
-		}),
+		onSyncEvent: vi.fn(
+			(cb: (ev: { kind: string; entryJson?: string; groupKey?: string }) => void) => {
+				syncListeners.push(cb);
+				return () => {};
+			},
+		),
 		startEnrollInvite,
 	};
 	const platform = {
@@ -96,8 +106,9 @@ function makePlatform(ownPub: string) {
 		shell,
 		clipboard: {},
 	} as unknown as Platform;
-	const enrolled = (entry: object) => {
-		for (const cb of syncListeners) cb({ kind: "enrolled", entryJson: JSON.stringify(entry) });
+	const enrolled = (entry: object, groupKey = "Z2s=") => {
+		for (const cb of syncListeners)
+			cb({ kind: "enrolled", entryJson: JSON.stringify(entry), groupKey });
 	};
 	return { platform, startEnrollInvite, setMeta: storage.setMeta, enrolled };
 }
@@ -202,4 +213,59 @@ describe("adding the device that joined", () => {
 			.roster.devices.map((d) => d.id);
 		expect(ids?.sort()).toEqual(["device-1", "device-2"]);
 	});
+});
+
+it("requires manual re-pairing rather than publishing a changed admission authority", async () => {
+	const { platform, startEnrollInvite } = makePlatform(CURRENT_PUB);
+	platform.shell.syncAdmissionPublicKey = vi.fn(async () => "different-authority");
+	const actions = await mount(platform);
+	await act(async () => {
+		await expect(
+			actions().inviteDevice("wss://relay.example", undefined, "master password"),
+		).rejects.toThrow(/re-pair/i);
+	});
+	expect(startEnrollInvite).not.toHaveBeenCalled();
+});
+
+it("pins the founder's authority before publishing a newly created group", async () => {
+	const { platform, startEnrollInvite, setMeta } = makePlatform(CURRENT_PUB);
+	const meta = new Map<string, unknown>([
+		[VAULT_REGISTRY_KEY, { vaults: [{ id: "v1", label: "", createdAt: 1 }] }],
+	]);
+	platform.storage.getMeta = vi.fn(async (key: string) =>
+		meta.get(key),
+	) as typeof platform.storage.getMeta;
+	setMeta.mockImplementation(async (key?: string, value?: unknown) => {
+		meta.set(key!, value);
+	});
+	const actions = await mount(platform);
+	await act(async () => {
+		await actions().inviteDevice("wss://relay.example", undefined, "master password");
+	});
+	const first = (meta.get("sync.group:v1") as { roster: RosterPayload }).roster.devices[0];
+	expect(first).toMatchObject({ admissionKey: "authority", sigKey: "signing-key", sig: "c2ln" });
+	expect(meta.get("sync.admissionSalt:v1")).toEqual(expect.any(String));
+	expect(startEnrollInvite).toHaveBeenCalledTimes(1);
+});
+
+it("ignores an enrollment result belonging to an older group", async () => {
+	const { platform, setMeta, enrolled } = makePlatform(CURRENT_PUB);
+	const actions = await mount(platform);
+	await act(async () => {
+		await actions().inviteDevice("wss://relay.example", undefined, "master password");
+	});
+	setMeta.mockClear();
+	await act(async () =>
+		enrolled(
+			{
+				id: "intruder",
+				publicKey: "intruder",
+				label: "intruder",
+				addedAt: 1,
+				hlc: { wall: 5, counter: 0, node: "intruder" },
+			},
+			"expired-group",
+		),
+	);
+	expect(setMeta.mock.calls.filter(([key]) => key === "sync.group:v1")).toEqual([]);
 });
