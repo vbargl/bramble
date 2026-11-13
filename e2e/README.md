@@ -340,3 +340,22 @@ refused to click either. Nothing was wrong with sync itself, and nobody could se
 job ran it.
 
 If you add a suite that CI does not run, it is not covered - it is only untested more slowly.
+
+## F8 security-copy browser checks
+
+```sh
+pnpm --filter @vault/website build
+pnpm exec playwright test --config playwright.website-copy.config.ts
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/pairing-copy-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Build the extension and WASM before the pairing test. Website tests render the built site,
+open the real FAQ accordions, and assert relay metadata, optional network services, preserved
+conflicts and old-client limitations. The app test generates a real local-relay invite and
+checks the private-code/symbol-comparison warnings before any vault transfer. Astro preview
+uses `--ignore-lock` to stay in the Playwright-owned foreground process even under agent
+auto-background detection. `CHROMIUM_BINARY` can select a system Chromium.
+
+These are UI/documentation regression checks, not evidence that the cryptographic findings
+are fixed. README prose and translated native/device UI still require their own review.
