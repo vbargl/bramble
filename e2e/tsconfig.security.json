@@ -16,6 +16,8 @@
 		"sync/admission-security.spec.ts",
 		"sync/recovery-security.spec.ts",
 		"sync/enrollment-pin-security.spec.ts",
-		"desktop-link/key-residency-security.spec.ts"
+		"desktop-link/key-residency-security.spec.ts",
+		"website/headers-security.spec.ts",
+		"../playwright.website-security.config.ts"
 	]
 }

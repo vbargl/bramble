@@ -448,3 +448,17 @@ the OPEN remainder of F5. Setup and IPC errors are not hidden behind expected-fa
 On Linux both native tests are SKIPPED, not passed. Biometric/enrollment residency and actual
 Android/iOS bindings remain outside this desktop suite. Never infer complete native-only key
 residency from the lifecycle-return test.
+
+## F6 website policy security gate
+
+```sh
+pnpm --filter @vault/website build
+pnpm exec playwright test --config playwright.website-security.config.ts
+```
+
+Uses the installed Wrangler Pages emulator and the real generated `dist/_headers`, rather than
+a test server reimplementing the policy. The HTTP checks preserve Matrix CORS and updater cache
+rules. Real browser checks prove the legitimate hashed theme script executes, an injected inline
+script is blocked, and a different origin cannot frame the page. `CHROMIUM_BINARY` can select a
+system Chromium. All tests use loopback endpoints. Local HSTS header validation does not prove
+production TLS configuration, HSTS preload state, or that these headers have been deployed.
