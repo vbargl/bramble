@@ -691,6 +691,11 @@ export async function confirmDesktopLink(id: string, matches: boolean): Promise<
 			else if (wasHeld) void ensureHeld().catch(() => {});
 		});
 		held = link;
+		// Registration may have preceded this connection. Ask the background to bind the current
+		// document now as well as on future navigation/tab changes. Contains no secret.
+		void Promise.resolve(api.runtime.sendMessage({ type: "DESKTOP_FILL_LINK_READY" })).catch(
+			() => {},
+		);
 		linkWanted = true;
 		startKeepalive();
 		return state;
@@ -917,6 +922,7 @@ let linkWanted = false;
 
 /** One credential the app is asking this browser to fill. Not stored anywhere. */
 export interface DesktopFill {
+	target?: string;
 	username: string;
 	password: string;
 	/**
@@ -932,6 +938,7 @@ let onFillRequest: ((fill: DesktopFill) => void) | null = null;
 
 /** A fill as the app frames it. Its `totp` is the authenticator key. */
 interface WireFill {
+	target?: string;
 	username?: string;
 	password?: string;
 	totp?: string | null;
@@ -958,11 +965,11 @@ export function heldVault(): string | null | undefined {
 	return held && !held.session.dead ? held.vaultId : undefined;
 }
 
-export async function reportActiveTab(hostname: string): Promise<void> {
+export async function reportActiveTab(hostname: string, target = ""): Promise<void> {
 	const link = held;
 	if (!link || link.session.dead) return;
 	try {
-		await sealAndSend(link, { op: "activeTab", hostname });
+		await sealAndSend(link, { op: "activeTab", hostname, target });
 	} catch {
 		// A dead pipe is not worth reporting: the next keepalive rebuilds it.
 	}
@@ -1273,6 +1280,11 @@ async function connectHeld(via?: string): Promise<HeldLink | null> {
 	}
 	link.files = Array.isArray(caps?.caps) && caps.caps.includes(CAP_FILES);
 	held = link;
+	// Registration may have preceded this connection. Ask the background to bind the current
+	// document now as well as on future navigation/tab changes. Contains no secret.
+	void Promise.resolve(api.runtime.sendMessage({ type: "DESKTOP_FILL_LINK_READY" })).catch(
+		() => {},
+	);
 	if (source.legacy) void adoptLegacyLink(link);
 	return link;
 }
@@ -1323,6 +1335,7 @@ async function routeInbound(link: HeldLink, sealed: string): Promise<void> {
 	}
 	if (parsed.fill && typeof parsed.fill.password === "string") {
 		onFillRequest?.({
+			target: typeof parsed.fill.target === "string" ? parsed.fill.target : undefined,
 			username: parsed.fill.username ?? "",
 			password: parsed.fill.password,
 			// `totp` on the wire, and a key rather than a code; see DesktopFill.

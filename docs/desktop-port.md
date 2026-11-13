@@ -1542,3 +1542,13 @@ explains why the answer is what it is.
   security-key unlock *more* capable than the browser path, since hmac-secret is a CTAP2-level
   protocol feature and a native implementation sidesteps origin restrictions entirely. The slot
   format does not change. Worth its own spike after v1 `[unverified]`.
+
+### Document-bound panel fill
+
+Panel fill reports carry an opaque random capability minted in the top content script. The app
+echoes it with the authorized entry. The background queues that entry briefly and sends only a
+non-secret wakeup to the tab; plaintext returns through the claiming document's original
+runtime response channel after matching its capability, browser-stamped origin, frame and active
+tab. A replacement document does not inherit the capability. Hidden/pagehide invalidate it,
+including BFCache. The app snapshots hostname and capability together. Older peers without a
+capability require an update; there is no legacy frame-addressed secret fallback.

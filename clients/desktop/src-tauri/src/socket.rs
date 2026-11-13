@@ -138,7 +138,11 @@ enum Request {
     /// So the panel can say where a fill would land before the user commits to one. Not trusted
     /// for any decision: the browser is the only thing that can authorize a fill, because only
     /// it knows what page is really in front of the user. This is for display.
-    ActiveTab { hostname: String },
+    ActiveTab {
+        hostname: String,
+        #[serde(default)]
+        target: String,
+    },
     /// One frame of device sync, on its way to the webview that runs the sync host.
     ///
     /// Not request/response like the other two: sync is a conversation, and either side speaks
@@ -236,6 +240,7 @@ impl Answer {
 
 /// One browser's reported page: which connection reported it, the page, and report order.
 struct Reported {
+    target: String,
     link: u64,
     hostname: String,
     seq: u64,
@@ -249,7 +254,7 @@ fn reported() -> &'static Mutex<HashMap<String, Reported>> {
     REPORTED.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn record_page(peer_id: &str, link: u64, hostname: String) {
+fn record_page(peer_id: &str, link: u64, hostname: String, target: String) {
     let Ok(mut map) = reported().lock() else {
         return;
     };
@@ -260,6 +265,7 @@ fn record_page(peer_id: &str, link: u64, hostname: String) {
         map.insert(
             peer_id.to_string(),
             Reported {
+                target,
                 link,
                 hostname,
                 seq,
@@ -322,7 +328,25 @@ pub fn spotlight_request_fill(id: String) -> Result<(), String> {
     }
     let entry = index_store::secret_for(&id).ok_or("unknown entry")?;
     // The browser that last reported a page is the one being filled; with none, nothing is sent.
-    let (peer_id, page) = fill_target().ok_or("no browser page")?;
+    // Snapshot the hostname and document capability under the same lock. A newer report
+    // must never lend its capability to a check made against an older hostname.
+    let (peer_id, page, target) = {
+        let map = reported().lock().map_err(|_| "page state unavailable")?;
+        let mut reports: Vec<_> = map
+            .iter()
+            .map(|(peer, r)| (r.seq, peer.clone(), r.hostname.clone(), r.target.clone()))
+            .collect();
+        drop(map);
+        reports.sort_by(|a, b| b.0.cmp(&a.0));
+        reports
+            .into_iter()
+            .find(|(_, peer, _, _)| listed_peer(peer))
+            .map(|(_, peer, hostname, target)| (peer, hostname, target))
+            .ok_or("no browser page")?
+    };
+    if target.is_empty() {
+        return Err("update the browser extension before filling".into());
+    }
     if !listed_peer(&peer_id) {
         return Err(PAIRING_PENDING.into());
     }
@@ -338,6 +362,7 @@ pub fn spotlight_request_fill(id: String) -> Result<(), String> {
     }
     let frame = serde_json::json!({
         "fill": {
+            "target": target,
             "username": entry.username,
             "password": entry.password,
             "totp": entry.totp,
@@ -765,8 +790,10 @@ fn read_loop(
         // Sync frames are relayed, not answered: the webview replies in its own time, or not at
         // all. Everything else is request/response and gets exactly one answer.
         // Reported, not answered: the browser tells us where it is whenever that changes.
-        if let Ok(Request::ActiveTab { hostname }) = serde_json::from_str::<Request>(&plaintext) {
-            record_page(peer_id, link, hostname);
+        if let Ok(Request::ActiveTab { hostname, target }) =
+            serde_json::from_str::<Request>(&plaintext)
+        {
+            record_page(peer_id, link, hostname, target);
             continue;
         }
         if let Ok(Request::Sync { frame, room }) = serde_json::from_str::<Request>(&plaintext) {
@@ -2174,9 +2201,9 @@ mod tests {
         let dir = started();
         let mut a = Linked::open(&dir);
         let mut b = Linked::open(&dir);
-        a.send(serde_json::json!({ "op": "activeTab", "hostname": "a.com" }));
+        a.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "a.com" }));
         await_reported(Some((&a.public_key, "a.com")));
-        b.send(serde_json::json!({ "op": "activeTab", "hostname": "b.com" }));
+        b.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "b.com" }));
         await_reported(Some((&b.public_key, "b.com")));
 
         let (b_session, a_key) = (b.session_id, a.public_key.clone());
@@ -2192,12 +2219,14 @@ mod tests {
         let dir = started();
         let mut a = Linked::open(&dir);
         let mut b = Linked::open(&dir);
-        a.send(serde_json::json!({ "op": "activeTab", "hostname": "a.com" }));
+        a.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "a.com" }));
         await_reported(Some((&a.public_key, "a.com")));
-        b.send(serde_json::json!({ "op": "activeTab", "hostname": "b.com" }));
+        b.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "b.com" }));
         await_reported(Some((&b.public_key, "b.com")));
 
-        b.send(serde_json::json!({ "op": "activeTab", "hostname": "" }));
+        b.send(
+            serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "" }),
+        );
         await_reported(Some((&a.public_key, "a.com")));
         handshake::handshake_close(a.session_id);
         handshake::handshake_close(b.session_id);
@@ -2253,7 +2282,7 @@ mod tests {
         github_indexed();
         let mut link = Linked::connect(&dir, pending_client(&dir));
         link.await_registered(true);
-        link.send(serde_json::json!({ "op": "activeTab", "hostname": "github.com" }));
+        link.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "github.com" }));
         await_reported(Some((&link.public_key, "github.com")));
 
         assert!(spotlight_request_fill("gh".into()).is_err());
@@ -2272,9 +2301,9 @@ mod tests {
         linked.await_registered(true);
         let mut pending = Linked::connect(&dir, pending_client(&dir));
         pending.await_registered(true);
-        linked.send(serde_json::json!({ "op": "activeTab", "hostname": "github.com" }));
+        linked.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "github.com" }));
         await_reported(Some((&linked.public_key, "github.com")));
-        pending.send(serde_json::json!({ "op": "activeTab", "hostname": "github.com" }));
+        pending.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "github.com" }));
         await_reported(Some((&pending.public_key, "github.com")));
 
         assert_eq!(spotlight_active_tab().as_deref(), Some("github.com"));
@@ -2296,17 +2325,37 @@ mod tests {
         let mut a = Linked::open(&dir);
         let mut b = Linked::open(&dir);
         b.await_registered(true);
-        a.send(serde_json::json!({ "op": "activeTab", "hostname": "github.com" }));
+        a.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "github.com" }));
         await_reported(Some((&a.public_key, "github.com")));
 
         spotlight_request_fill("gh".into()).expect("fill");
 
-        assert_eq!(a.recv()["fill"]["password"], "hunter2");
+        let fill = a.recv();
+        assert_eq!(fill["fill"]["password"], "hunter2");
+        assert_eq!(fill["fill"]["target"], "audit-document");
         assert_eq!(next_after_marker(&mut b, "marker")["sync"], "marker");
         index_store::clear();
         vault_crypto::lock();
         handshake::handshake_close(a.session_id);
         handshake::handshake_close(b.session_id);
+    }
+
+    #[test]
+    fn legacy_report_without_document_capability_cannot_receive_a_fill() {
+        let _g = pairing::test_lock();
+        let dir = started();
+        github_indexed();
+        let mut a = Linked::open(&dir);
+        a.await_registered(true);
+        a.send(serde_json::json!({ "op": "activeTab", "hostname": "github.com" }));
+        await_reported(Some((&a.public_key, "github.com")));
+        assert!(spotlight_request_fill("gh".into())
+            .unwrap_err()
+            .contains("update"));
+        assert_eq!(next_after_marker(&mut a, "marker")["sync"], "marker");
+        index_store::clear();
+        vault_crypto::lock();
+        handshake::handshake_close(a.session_id);
     }
 
     #[test]
@@ -2336,7 +2385,7 @@ mod tests {
         let dir = started();
         github_indexed();
         let mut a = Linked::open(&dir);
-        a.send(serde_json::json!({ "op": "activeTab", "hostname": "evil.com" }));
+        a.send(serde_json::json!({ "op": "activeTab", "target": "audit-document", "hostname": "evil.com" }));
         await_reported(Some((&a.public_key, "evil.com")));
 
         assert_eq!(
@@ -2724,8 +2773,20 @@ mod tests {
         link_pair_answer(true);
         window_cancel(None);
 
-        a.send(serde_json::json!({ "op": "linkConfirm" }));
-        assert_eq!(a.recv()["ok"], false);
+        // Closing the dialog may already have closed the socket. Either a rejected reply
+        // or a closed pipe is valid; assert the security property rather than requiring a reply.
+        let sealed = handshake::handshake_encrypt(
+            a.session_id,
+            serde_json::json!({ "op": "linkConfirm" }).to_string(),
+        )
+        .unwrap();
+        let body = serde_json::to_vec(&serde_json::json!({ "sealed": sealed })).unwrap();
+        let _ = a
+            .client
+            .stream
+            .write_all(&(body.len() as u32).to_le_bytes())
+            .and_then(|_| a.client.stream.write_all(&body));
+        std::thread::sleep(std::time::Duration::from_millis(200));
         assert!(!pairing::paired_peers(dir.path())
             .unwrap()
             .iter()
