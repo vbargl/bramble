@@ -62,6 +62,19 @@ pub fn sync_handshake_enroll_initiator(
 }
 
 #[tauri::command]
+pub fn sync_handshake_enroll_initiator_pinned(
+    local_priv_b64: String,
+    psk_b64: String,
+    expected_remote_b64: String,
+) -> CmdResult<handshake::StartResult> {
+    map(handshake::handshake_enroll_initiator_pinned(
+        local_priv_b64,
+        psk_b64,
+        expected_remote_b64,
+    ))
+}
+
+#[tauri::command]
 pub fn sync_handshake_enroll_responder(local_priv_b64: String, psk_b64: String) -> CmdResult<u32> {
     map(handshake::handshake_enroll_responder(
         local_priv_b64,

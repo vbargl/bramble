@@ -79,6 +79,7 @@ function mockWasm(overrides: Partial<EnrollWasm> = {}): EnrollWasm {
 		nostr_sign: () => "AA==",
 		nostr_verify: () => true,
 		handshake_enroll_initiator: () => ({ sessionId: 1, message: "" }),
+		handshake_enroll_initiator_pinned: () => ({ sessionId: 1, message: "" }),
 		handshake_enroll_responder: () => 1,
 		handshake_encrypt: (_sid: number, pt: string) => pt, // identity transport
 		handshake_decrypt: (_sid: number, ct: string) => ct,
@@ -742,7 +743,13 @@ describe("joiner — inviter pin", () => {
 	});
 
 	it("refuses to join at all when no inviter key was passed to pin against", async () => {
-		const wasm = mockWasm({ handshake_remote_static: () => "whatever" });
+		const unpinned = vi.fn(() => ({ sessionId: 1, message: "never" }));
+		const pinned = vi.fn(() => ({ sessionId: 1, message: "never" }));
+		const wasm = mockWasm({
+			handshake_remote_static: () => "whatever",
+			handshake_enroll_initiator: unpinned,
+			handshake_enroll_initiator_pinned: pinned,
+		});
 		const handle = makeEnrollHandler(
 			"joiner",
 			joinerOpts(wasm, { inviterPub: undefined }),
@@ -751,6 +758,8 @@ describe("joiner — inviter pin", () => {
 		const { peer } = joinPeer();
 		// Previously `opts.inviterPub && ...` silently skipped the MITM check for such a caller.
 		await expect(handle(peer)).rejects.toThrow(/inviter key/i);
+		expect(unpinned).not.toHaveBeenCalled();
+		expect(pinned).not.toHaveBeenCalled();
 	});
 
 	// Regression: this wait spans the inviter's prompt, so it is human time. On the 30s frame budget
