@@ -428,3 +428,23 @@ Different pin: message 2 is processed, an explicit pin-mismatch status arrives, 
 validation rejects the code and sends no handshake frame. The original late-pin enrollment
 host emits message 3 and fails the mismatch case. Native FFI/app-device acceptance remains
 separate from this WASM browser run.
+
+## F5 native key-return security gate
+
+```sh
+cargo build --manifest-path clients/desktop/src-tauri/Cargo.toml
+pnpm exec playwright test --config playwright.desktop-link.config.ts e2e/desktop-link/key-residency-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Uses the real desktop window and Tauri command bridge in the existing isolated macOS fixture.
+The create/rotate return values must be null while real AES-GCM encryption/decryption still
+works; old ciphertext must fail under the replacement key. This catches an IPC return leak,
+not merely a TypeScript adapter discarding an already-returned secret.
+
+The explicit-export test records only availability and byte count, never the key. If it observes
+a reusable 32-byte VEK entering the webview, that exact assertion is an expected failure tracking
+the OPEN remainder of F5. Setup and IPC errors are not hidden behind expected-failure status.
+On Linux both native tests are SKIPPED, not passed. Biometric/enrollment residency and actual
+Android/iOS bindings remain outside this desktop suite. Never infer complete native-only key
+residency from the lifecycle-return test.
