@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { loadBackground } from "../test/test-harness";
+
 const h = vi.hoisted(() => ({
 	up: false,
 	report: vi.fn(),
@@ -62,4 +63,12 @@ it("refreshes the page when another browser window gains focus", async () => {
 	for (const fn of bg.state.windowFocusListeners) fn(7);
 	await bg.flush();
 	expect(h.report).toHaveBeenCalledWith("example.com");
+});
+
+it("keeps the last target when focus leaves the browser for Quick Access", async () => {
+	const bg = await start();
+	h.report.mockClear();
+	for (const fn of bg.state.windowFocusListeners) fn(-1);
+	await bg.flush();
+	expect(h.report).not.toHaveBeenCalled();
 });
