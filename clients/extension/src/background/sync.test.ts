@@ -21,7 +21,8 @@ import { memoryStorageArea } from "../test/test-harness";
 
 // Capture what the background hands the offscreen host. The rest of the background wiring is
 // stubbed so importing ./sync doesn't drag in the router/offscreen machinery.
-const { sendToOffscreen } = vi.hoisted(() => ({
+const { sendToOffscreen, hostMode } = vi.hoisted(() => ({
+	hostMode: { offscreen: false },
 	// Typed with the message param so `.mock.calls[i][0]` is the sent message, not an empty tuple.
 	sendToOffscreen: vi.fn((_message: { type?: string; payload?: Record<string, unknown> }) =>
 		Promise.resolve({ ok: true }),
@@ -30,7 +31,9 @@ const { sendToOffscreen } = vi.hoisted(() => ({
 vi.mock("./offscreen-client", () => ({
 	sendToOffscreen,
 	setInProcessSyncBridge: vi.fn(),
-	useOffscreenDoc: false,
+	get useOffscreenDoc() {
+		return hostMode.offscreen;
+	},
 	ensureOffscreen: vi.fn(async () => {}),
 	markOffscreenKey: vi.fn(),
 }));
@@ -59,6 +62,7 @@ function stubChrome(
 		storage: { local: memoryStorageArea(local), session: memoryStorageArea(session) },
 		alarms: { create: vi.fn(), clear: vi.fn(async () => {}) },
 		runtime: {
+			sendMessage: vi.fn(async () => {}),
 			onMessage: { addListener: vi.fn() },
 			onConnect: { addListener: vi.fn() },
 			id: "bramble-test",
@@ -211,30 +215,60 @@ const seedTwoVaults = () => ({
 const types = () => sendToOffscreen.mock.calls.map((c) => c[0].type);
 
 describe("sync startup recovers after a browser restart", () => {
-	for (const failure of ["response", "transport"] as const) {
-		it(`retries when the first host start fails (${failure})`, async () => {
-			stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a", "sync.openedVault": "a" });
-			let starts = 0;
-			sendToOffscreen.mockImplementation(async (message) => {
-				if (message.type === "SYNC_ROSTER_SYNC" && ++starts === 1) {
-					if (failure === "transport") throw new Error("host unavailable");
-					return { ok: false, error: "host unavailable" } as never;
+	for (const offscreen of [false, true]) {
+		for (const failure of ["response", "transport"] as const) {
+			it(`retries when the first host start fails (${failure}, offscreen=${offscreen})`, async () => {
+				hostMode.offscreen = offscreen;
+				stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a", "sync.openedVault": "a" });
+				let starts = 0;
+				sendToOffscreen.mockImplementation(async (message) => {
+					if (message.type === "SYNC_ROSTER_SYNC" && ++starts === 1) {
+						if (failure === "transport") throw new Error("host unavailable");
+						return { ok: false, error: "host unavailable" } as never;
+					}
+					return { ok: true };
+				});
+				try {
+					const sync = await loadSync();
+					await sync.maybeStartSync().catch(() => {});
+					expect(chrome.alarms.create).toHaveBeenCalledWith("sync-keepalive", expect.anything());
+					await sync.maybeStartSync();
+					expect(starts).toBe(2);
+					await sync.maybeStartSync();
+					expect(starts).toBe(2);
+				} finally {
+					hostMode.offscreen = false;
+					sendToOffscreen.mockImplementation(async () => ({ ok: true }));
 				}
-				return { ok: true };
 			});
-			try {
-				const sync = await loadSync();
-				await sync.maybeStartSync().catch(() => {});
-				expect(chrome.alarms.create).toHaveBeenCalledWith("sync-keepalive", expect.anything());
-				await sync.maybeStartSync();
-				expect(starts).toBe(2);
-				await sync.maybeStartSync();
-				expect(starts).toBe(2);
-			} finally {
-				sendToOffscreen.mockImplementation(async () => ({ ok: true }));
-			}
-		});
+		}
 	}
+	it("an older failed start cannot clear a newer unlocked session", async () => {
+		stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a", "sync.openedVault": "a" });
+		let rejectFirst!: () => void;
+		let starts = 0;
+		sendToOffscreen.mockImplementation(async (message) => {
+			if (message.type === "SYNC_ROSTER_SYNC" && ++starts === 1) {
+				return new Promise((resolve) => {
+					rejectFirst = () => resolve({ ok: false } as never);
+				});
+			}
+			return { ok: true };
+		});
+		try {
+			const sync = await loadSync();
+			const oldStart = sync.maybeStartSync();
+			await vi.waitFor(() => expect(starts).toBe(1));
+			await sync.stopSync();
+			await sync.maybeStartSync();
+			rejectFirst();
+			await oldStart;
+			await sync.maybeStartSync();
+			expect(starts).toBe(2);
+		} finally {
+			sendToOffscreen.mockImplementation(async () => ({ ok: true }));
+		}
+	});
 });
 
 describe("sync is pinned to one vault", () => {
