@@ -945,12 +945,6 @@ export function onDesktopFillRequest(handler: (fill: DesktopFill) => void): void
 	onFillRequest = handler;
 }
 
-/**
- * Tell the app which page this browser is on, so its panel can say where a fill would land.
- *
- * Only while a link is already held: this must not be the thing that spawns a native host, or
- * every tab switch would start a process on a machine with no desktop app running.
- */
 /** Refresh page routing whenever a new authenticated transport becomes usable. */
 let onLinkConnected: (() => void) | null = null;
 export function onDesktopLinkConnected(handler: () => void): void {
@@ -968,6 +962,12 @@ export function heldVault(): string | null | undefined {
 	return held && !held.session.dead ? held.vaultId : undefined;
 }
 
+/**
+ * Tell the app which page this browser is on, so its panel can say where a fill would land.
+ *
+ * Only while a link is already held: this must not be the thing that spawns a native host, or
+ * every tab switch would start a process on a machine with no desktop app running.
+ */
 export async function reportActiveTab(hostname: string, target = ""): Promise<void> {
 	const link = held;
 	if (!link || link.session.dead) return;
