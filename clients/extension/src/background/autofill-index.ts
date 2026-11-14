@@ -1102,10 +1102,13 @@ function watchActiveTab(): void {
 	api.tabs.onUpdated?.addListener((_id, change) => {
 		if (change.url || change.status === "complete") refresh();
 	});
-	on("DESKTOP_FILL_LINK_READY", extensionOnly(async () => {
-		refresh();
-		return { ok: true };
-	}));
+	on(
+		"DESKTOP_FILL_LINK_READY",
+		extensionOnly(async () => {
+			refresh();
+			return { ok: true };
+		}),
+	);
 	on("DESKTOP_FILL_PAGE", async (_message, sender) => {
 		if (sender.frameId !== 0 || !pageSenderUrl(sender)) return { ok: false };
 		refresh();

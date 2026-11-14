@@ -2163,6 +2163,8 @@ describe("a borrowed pipe serves link requests, not just pairing", () => {
 it("carries the document capability over the native link in both directions", async () => {
 	const mod = await load();
 	const onFill = vi.fn();
+	const onReady = vi.fn();
+	mod.onDesktopLinkConnected(onReady);
 	mod.onDesktopFillRequest(onFill);
 	await open(mod, []);
 	const target = "a".repeat(64);
@@ -2179,5 +2181,5 @@ it("carries the document capability over the native link in both directions", as
 	await vi.waitFor(() =>
 		expect(onFill).toHaveBeenCalledWith({ username: "u", password: "s", target, totpKey: null }),
 	);
-	expect(h.broadcast).toContainEqual({ type: "DESKTOP_FILL_LINK_READY" });
+	expect(onReady).toHaveBeenCalledTimes(1);
 });
