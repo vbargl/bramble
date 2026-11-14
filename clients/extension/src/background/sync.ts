@@ -323,22 +323,49 @@ export async function maybeStartSync(expectedVekEpoch?: number): Promise<void> {
 	syncRunning = true;
 	syncVaultId = ctx.vaultId;
 	if (syncHostSuspends) api.alarms.create(SYNC_KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
-	const payload: RosterSyncMsg = {
-		vaultId: ctx.vaultId,
-		relayUrl: await getStoredRelay(),
-		iceUrl: await getStoredIceUrl(),
-		groupKeyB64: group.groupKey,
-		roster: group.roster,
-		devicePrivB64: kp.privateKey,
-		devicePubB64: kp.publicKey,
-	};
-	if (sessionMoved()) {
-		abandonStart("the final check before handing the roster to the host", startEpoch, vekEpoch);
-		syncRunning = false;
-		syncVaultId = null;
+	try {
+		const payload: RosterSyncMsg = {
+			vaultId: ctx.vaultId,
+			relayUrl: await getStoredRelay(),
+			iceUrl: await getStoredIceUrl(),
+			groupKeyB64: group.groupKey,
+			roster: group.roster,
+			devicePrivB64: kp.privateKey,
+			devicePubB64: kp.publicKey,
+		};
+		if (sessionMoved()) {
+			abandonStart("the final check before handing the roster to the host", startEpoch, vekEpoch);
+			syncRunning = false;
+			syncVaultId = null;
+			return;
+		}
+		const started = await sendToOffscreen({ type: "SYNC_ROSTER_SYNC", payload });
+		if (!started.ok) throw new Error("sync host refused startup");
+	} catch (error) {
+		// A failed host start is not a running session. Only its own reservation may be
+		// cleared: an older start can finish after a stop and a new unlock already won.
+		if (startEpoch === syncEpoch && syncVaultId === ctx.vaultId) {
+			syncRunning = false;
+			syncVaultId = null;
+			console.warn("[bramble:bg] sync startup failed; retry scheduled", error);
+			void api.runtime
+				.sendMessage({
+					type: "SYNC_STATUS",
+					payload: { status: "sync startup failed; retrying" },
+				})
+				.catch(() => {});
+			// Firefox already has a repeating keepalive. Chrome needs one retry alarm
+			// when its normally persistent offscreen host did not start.
+			if (!syncHostSuspends) {
+				await api.alarms.create(SYNC_KEEPALIVE_ALARM, { delayInMinutes: 0.5 });
+			}
+		}
 		return;
 	}
-	await sendToOffscreen({ type: "SYNC_ROSTER_SYNC", payload });
+	// A lock/vault switch can happen while the host is starting. Its stop is already
+	// queued behind that start; do not reopen the link callbacks after it.
+	if (sessionMoved()) return;
+
 	// Hold the desktop link open for as long as sync runs, so the app's pushed frames have
 	// somewhere to arrive. Failure is silent and expected: most browsers have no desktop app
 	// paired, and the ones that do may not have it running.
