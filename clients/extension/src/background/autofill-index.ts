@@ -28,6 +28,7 @@ import {
 	type DesktopFill,
 	linkIsHeld,
 	onDesktopFillRequest,
+	onDesktopLinkConnected,
 	reportActiveTab,
 } from "./desktop-link";
 import { shortcutGrantLive, spendShortcutGrant } from "./fill-shortcut";
@@ -1047,11 +1048,17 @@ function watchActiveTab(): void {
 	};
 	// Optional, not assumed. Naming the fill target is a convenience, so a host that does not
 	// expose tab events should lose the label rather than fail to load the background at all.
-	api.tabs.onActivated?.addListener(() => void report());
-	api.tabs.onUpdated?.addListener((_id, change) => {
-		if (change.url) void report();
+	const refresh = () => void report().catch(() => {});
+	onDesktopLinkConnected(refresh);
+	api.windows.onFocusChanged?.addListener((windowId) => {
+		// Losing focus to the desktop panel must retain the last browser target.
+		if (windowId >= 0) refresh();
 	});
-	void report();
+	api.tabs.onActivated?.addListener(refresh);
+	api.tabs.onUpdated?.addListener((_id, change) => {
+		if (change.url) refresh();
+	});
+	refresh();
 }
 
 watchActiveTab();

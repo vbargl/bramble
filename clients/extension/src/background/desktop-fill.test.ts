@@ -18,6 +18,7 @@ vi.mock("./desktop-link", () => ({
 		h.onFill = handler;
 	},
 	linkIsHeld: () => false,
+	onDesktopLinkConnected: () => {},
 	reportActiveTab: async () => {},
 	openDesktopLink: async () => false,
 	openSyncLink: async () => false,

@@ -387,7 +387,9 @@ function makeChrome(opts: ChromeMockOptions): { chrome: any; state: HarnessState
 			},
 		},
 		windows: {
-			onFocusChanged: { addListener: (fn: (id: number) => void) => state.windowFocusListeners.push(fn) },
+			onFocusChanged: {
+				addListener: (fn: (id: number) => void) => state.windowFocusListeners.push(fn),
+			},
 			create: vi.fn(async (createOpts: AnyMsg) => {
 				state.windowsCreated.push(createOpts);
 				return { id: 999 };
