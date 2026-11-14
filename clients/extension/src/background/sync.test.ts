@@ -210,6 +210,33 @@ const seedTwoVaults = () => ({
 
 const types = () => sendToOffscreen.mock.calls.map((c) => c[0].type);
 
+describe("sync startup recovers after a browser restart", () => {
+	for (const failure of ["response", "transport"] as const) {
+		it(`retries when the first host start fails (${failure})`, async () => {
+			stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a", "sync.openedVault": "a" });
+			let starts = 0;
+			sendToOffscreen.mockImplementation(async (message) => {
+				if (message.type === "SYNC_ROSTER_SYNC" && ++starts === 1) {
+					if (failure === "transport") throw new Error("host unavailable");
+					return { ok: false, error: "host unavailable" } as never;
+				}
+				return { ok: true };
+			});
+			try {
+				const sync = await loadSync();
+				await sync.maybeStartSync().catch(() => {});
+				expect(chrome.alarms.create).toHaveBeenCalledWith("sync-keepalive", expect.anything());
+				await sync.maybeStartSync();
+				expect(starts).toBe(2);
+				await sync.maybeStartSync();
+				expect(starts).toBe(2);
+			} finally {
+				sendToOffscreen.mockImplementation(async () => ({ ok: true }));
+			}
+		});
+	}
+});
+
 describe("sync is pinned to one vault", () => {
 	it("hands the host the vault id it starts for", async () => {
 		stubChrome(seedTwoVaults(), { [ACTIVE_VAULT_SESSION_KEY]: "a", "sync.openedVault": "a" });
