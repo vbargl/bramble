@@ -2513,10 +2513,9 @@ mod tests {
         link_window_begin();
         let first = LinkClient::start(&dir).expect("first link");
         await_pending(true);
-        assert_eq!(
-            LinkClient::start(&dir).err().expect("second refused")["ok"],
-            false
-        );
+        let mut second = Client::connect(dir.path());
+        second.send(serde_json::json!({ "kind": "link", "v": 1, "label": "second" }));
+        assert_eq!(second.recv()["ok"], false);
         window_cancel(None);
         handshake::handshake_close(first.session_id);
     }
