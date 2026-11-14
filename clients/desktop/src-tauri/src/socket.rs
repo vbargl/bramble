@@ -2547,7 +2547,11 @@ mod tests {
         let _g = pairing::test_lock();
         let dir = started();
         window_cancel(None);
-        let refused = LinkClient::start(&dir).err().expect("refused");
+        let mut client = Client::connect(dir.path());
+        client.send(serde_json::json!({ "kind": "link", "v": 1, "label": "Chrome on Mac" }));
+        // Refusal closes the socket after this hello. Sending a handshake frame
+        // as LinkClient::start does would race that close and can hit BrokenPipe.
+        let refused = client.recv();
         assert_eq!(refused["ok"], false);
     }
 
