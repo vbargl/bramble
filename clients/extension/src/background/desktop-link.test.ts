@@ -520,6 +520,19 @@ describe("the held sync link", () => {
 		expect(h.connects).toBe(1);
 	});
 
+	it("notifies the page reporter after publishing a connected link", async () => {
+		const mod = await load();
+		const report = vi.fn(() => expect(mod.linkIsHeld()).toBe(true));
+		mod.onDesktopLinkConnected(report);
+		const opening = mod.openDesktopLink();
+		await vi.waitFor(() => expect(h.onMessage.length).toBeGreaterThan(0));
+		completeHandshake();
+		expect(await opening).toBe(true);
+		expect(report).toHaveBeenCalledTimes(1);
+		await mod.openDesktopLink();
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+
 	it("asks the app to offer sync again on a link held before sync, and keeps the link", async () => {
 		// The app offers a browser for sync when it connects, and refuses it while nothing here
 		// answers: a link opened to pair, before this browser had a vault. Starting afresh needs a

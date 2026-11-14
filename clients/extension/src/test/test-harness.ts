@@ -114,6 +114,7 @@ interface HarnessState {
 	session: Record<string, unknown>;
 	local: Record<string, unknown>;
 	alarms: Record<string, unknown>;
+	windowFocusListeners: Array<(windowId: number) => void>;
 	tabMessages: Array<{ tabId: number; message: AnyMsg; options?: AnyMsg }>;
 	tabsCreated: AnyMsg[];
 	broadcasts: AnyMsg[];
@@ -236,6 +237,7 @@ function makeChrome(opts: ChromeMockOptions): { chrome: any; state: HarnessState
 		session,
 		local,
 		alarms: {},
+		windowFocusListeners: [],
 		tabMessages: [],
 		tabsCreated: [],
 		broadcasts: [],
@@ -385,6 +387,7 @@ function makeChrome(opts: ChromeMockOptions): { chrome: any; state: HarnessState
 			},
 		},
 		windows: {
+			onFocusChanged: { addListener: (fn: (id: number) => void) => state.windowFocusListeners.push(fn) },
 			create: vi.fn(async (createOpts: AnyMsg) => {
 				state.windowsCreated.push(createOpts);
 				return { id: 999 };
