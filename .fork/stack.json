@@ -13,6 +13,7 @@
     "fix/audit-f8-copy-accuracy": "96876870f8526c5452e38aedb3d525b53d5ee4ac",
     "fix/desktop-page-reporting": "f760fa4f3e9b7f8783ab335dc461d2c4af8585dd",
     "fix/linux-quick-access-backdrop": "90861078b6a9c909bac86b22c35649a3ffaf2701",
-    "fix/sync-startup-retry": "9a3130c78321b5bc615173ca8d314bacd597b819"
+    "fix/sync-startup-retry": "9a3130c78321b5bc615173ca8d314bacd597b819",
+    "fix/native-refusal-test": "8ff73eb8c321b5b89b39f3daeb8afa54c9734b8f"
   }
 }

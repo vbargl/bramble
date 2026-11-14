@@ -66,3 +66,10 @@ not a passing native suite or proof of a specific environmental cause. Do not
 silently ignore it or claim live WebRTC acceptance. The full extension suite,
 core/desktop/mobile JS suites, workspace type checks, website CSP build check,
 mailbox routing checks and fixed-output Nix dependency build passed.
+
+## Native refusal test race
+
+`fix/native-refusal-test` keeps both early-refusal tests enabled and sends only
+the link hello before asserting refusal. Sending a handshake frame after the
+hello races the server closing an already-refused connection and caused
+BrokenPipe in nixfiles CI. This changes test drivers only, not admission logic.
