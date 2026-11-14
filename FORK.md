@@ -54,3 +54,15 @@ limitation explicitly, and do not silently excuse new failures. Real macOS nativ
 security scenarios, Android/iOS acceptance and mixed-client rollout remain
 separate checks. The strict admission changes require the migration described in
 `docs/p2p-sync-revocation-hardening.md`.
+
+## Integration validation limitation
+
+The initial combined native build compiled successfully. With the previously
+documented upload test excluded, 218 tests passed, the MinIO test was ignored,
+and `native_webrtc::tests::the_engine_opens_a_channel_in_this_apps_build`
+timed out with `no channel opened` in the Nix sandbox. The WebRTC test/module and
+desktop Cargo.lock match upstream exactly. This is an unresolved test limitation,
+not a passing native suite or proof of a specific environmental cause. Do not
+silently ignore it or claim live WebRTC acceptance. The full extension suite,
+core/desktop/mobile JS suites, workspace type checks, website CSP build check,
+mailbox routing checks and fixed-output Nix dependency build passed.
