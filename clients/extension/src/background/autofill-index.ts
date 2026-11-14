@@ -28,6 +28,7 @@ import {
 	type DesktopFill,
 	linkIsHeld,
 	onDesktopFillRequest,
+	onDesktopLinkConnected,
 	reportActiveTab,
 } from "./desktop-link";
 import { shortcutGrantLive, spendShortcutGrant } from "./fill-shortcut";
@@ -1092,24 +1093,25 @@ function watchActiveTab(): void {
 		}
 		if (current === generation) await reportActiveTab(hostname, target);
 	};
-	api.tabs.onActivated?.addListener(() => void report());
-	api.tabs.onUpdated?.addListener((_id, change) => {
-		if (change.url || change.status === "complete") void report();
+	const refresh = () => void report().catch(() => {});
+	onDesktopLinkConnected(refresh);
+	api.windows.onFocusChanged?.addListener((windowId) => {
+		if (windowId >= 0) refresh();
 	});
-	on(
-		"DESKTOP_FILL_LINK_READY",
-		extensionOnly(async () => {
-			void report();
-			return { ok: true };
-		}),
-	);
-	// A newly loaded content script or BFCache restoration may follow tabs.onUpdated.
+	api.tabs.onActivated?.addListener(refresh);
+	api.tabs.onUpdated?.addListener((_id, change) => {
+		if (change.url || change.status === "complete") refresh();
+	});
+	on("DESKTOP_FILL_LINK_READY", extensionOnly(async () => {
+		refresh();
+		return { ok: true };
+	}));
 	on("DESKTOP_FILL_PAGE", async (_message, sender) => {
 		if (sender.frameId !== 0 || !pageSenderUrl(sender)) return { ok: false };
-		void report();
+		refresh();
 		return { ok: true };
 	});
-	void report();
+	refresh();
 }
 
 watchActiveTab();

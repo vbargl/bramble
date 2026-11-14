@@ -691,11 +691,7 @@ export async function confirmDesktopLink(id: string, matches: boolean): Promise<
 			else if (wasHeld) void ensureHeld().catch(() => {});
 		});
 		held = link;
-		// Registration may have preceded this connection. Ask the background to bind the current
-		// document now as well as on future navigation/tab changes. Contains no secret.
-		void Promise.resolve(api.runtime.sendMessage({ type: "DESKTOP_FILL_LINK_READY" })).catch(
-			() => {},
-		);
+		onLinkConnected?.();
 		linkWanted = true;
 		startKeepalive();
 		return state;
@@ -955,6 +951,13 @@ export function onDesktopFillRequest(handler: (fill: DesktopFill) => void): void
  * Only while a link is already held: this must not be the thing that spawns a native host, or
  * every tab switch would start a process on a machine with no desktop app running.
  */
+/** Refresh page routing whenever a new authenticated transport becomes usable. */
+let onLinkConnected: (() => void) | null = null;
+export function onDesktopLinkConnected(handler: () => void): void {
+	onLinkConnected = handler;
+	if (linkIsHeld()) handler();
+}
+
 /** Whether a link is live, so callers can skip work that only matters when one is. */
 export function linkIsHeld(): boolean {
 	return held !== null && !held.session.dead;
@@ -1280,11 +1283,7 @@ async function connectHeld(via?: string): Promise<HeldLink | null> {
 	}
 	link.files = Array.isArray(caps?.caps) && caps.caps.includes(CAP_FILES);
 	held = link;
-	// Registration may have preceded this connection. Ask the background to bind the current
-	// document now as well as on future navigation/tab changes. Contains no secret.
-	void Promise.resolve(api.runtime.sendMessage({ type: "DESKTOP_FILL_LINK_READY" })).catch(
-		() => {},
-	);
+	onLinkConnected?.();
 	if (source.legacy) void adoptLegacyLink(link);
 	return link;
 }
