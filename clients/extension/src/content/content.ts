@@ -1290,6 +1290,46 @@ document.addEventListener(
 	true,
 );
 
+// Not exposed in the DOM or sent to replacement documents. pagehide/hidden invalidate even BFCache.
+const newDesktopTarget = () =>
+	Array.from(crypto.getRandomValues(new Uint8Array(32)), (n) =>
+		n.toString(16).padStart(2, "0"),
+	).join("");
+let desktopDocumentTarget = newDesktopTarget();
+async function claimDesktopFill(): Promise<void> {
+	if (window.top !== window || document.visibilityState !== "visible") return;
+	const target = desktopDocumentTarget;
+	const reply = await safeRequest<{
+		ok: boolean;
+		data?: { username: string; password: string; totp?: string };
+	}>({ type: "DESKTOP_FILL_CLAIM", target });
+	if (
+		target !== desktopDocumentTarget ||
+		document.visibilityState !== "visible" ||
+		!reply?.ok ||
+		!reply.data
+	)
+		return;
+	invalidatePageFields();
+	const fields = getPageFields().login;
+	const into = focusedCandidate() ?? fields.username ?? fields.password;
+	if (!into || !currentTargetKind(into)) return;
+	cancelFill();
+	picker.remove();
+	dropRelayed();
+	fillForm(reply.data.username, reply.data.password, false, into);
+	if (reply.data.totp) fillOtp(reply.data.totp);
+}
+window.addEventListener("pagehide", () => {
+	desktopDocumentTarget = newDesktopTarget();
+});
+window.addEventListener("pageshow", () => safeSendMessage({ type: "DESKTOP_FILL_PAGE" }));
+document.addEventListener("visibilitychange", () => {
+	desktopDocumentTarget = newDesktopTarget();
+	if (document.visibilityState === "visible") safeSendMessage({ type: "DESKTOP_FILL_PAGE" });
+});
+safeSendMessage({ type: "DESKTOP_FILL_PAGE" });
+
 api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	if (message?.type === "CORNER_PROMPT_SHOW") {
 		handleCornerPromptShow(message.payload as CornerPromptPayload);
@@ -1302,34 +1342,22 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 		return false;
 	}
 
-	if (message?.type === "DESKTOP_FILL") {
-		// A credential the desktop app is filling on this browser's behalf. It does NOT go through
-		// AUTOFILL_SELECT: that reads this browser's own index, which is empty while locked, and
-		// not having to unlock twice is the entire reason the link exists. The app authorized this
-		// one — the user chose the entry there, against a page this browser reported.
-		const fill = message.payload as
-			| { username?: string; password?: string; totp?: string | null }
-			| undefined;
-		// Re-read the page rather than trusting the cached model. The model is only dropped when a
-		// mutation moves something field-shaped (issue #59), so a field that changed in a way this
-		// frame never observed - an input whose type flipped to password, say - would leave a fill the
-		// user explicitly asked for in the desktop app answering "no field to fill". This runs once,
-		// on a deliberate action, where a stale answer costs more than the parse.
-		invalidatePageFields();
-		// The field the user left focused, else the page's own login field.
-		const fields = getPageFields().login;
-		const into = focusedCandidate() ?? fields.username ?? fields.password;
-		const kind = into ? currentTargetKind(into) : null;
-		if (!fill?.password || !into || !kind) {
-			sendResponse({ ok: false, error: "no field to fill" });
-			return false;
-		}
-		cancelFill();
-		picker.remove();
-		dropRelayed();
-		fillForm(fill.username ?? "", fill.password, false, into);
-		if (fill.totp) fillOtp(fill.totp);
+	if (message?.type === "DESKTOP_FILL_TARGET") {
+		sendResponse(
+			document.visibilityState === "visible" && window.top === window
+				? { target: desktopDocumentTarget, origin: location.origin }
+				: {},
+		);
+		return false;
+	}
+	if (message?.type === "DESKTOP_FILL_READY") {
+		void claimDesktopFill();
 		sendResponse({ ok: true });
+		return false;
+	}
+	// Legacy frame-addressed secrets are never accepted, including from an older desktop.
+	if (message?.type === "DESKTOP_FILL") {
+		sendResponse({ ok: false, error: "update required" });
 		return false;
 	}
 

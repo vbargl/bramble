@@ -86,7 +86,8 @@ class NativeCryptoPlugin : Plugin() {
 
     @PluginMethod
     fun generateVek(call: PluginCall) = call.runCrypto {
-        call.resolve(JSObject().put("value", uniffi.vault_crypto.generateVek()))
+        uniffi.vault_crypto.generateVekInPlace()
+        call.resolve()
     }
 
     @PluginMethod
@@ -105,7 +106,8 @@ class NativeCryptoPlugin : Plugin() {
 
     @PluginMethod
     fun rotateVek(call: PluginCall) = call.runCrypto {
-        call.resolve(JSObject().put("value", uniffi.vault_crypto.rotateVek()))
+        uniffi.vault_crypto.rotateVekInPlace()
+        call.resolve()
     }
 
     @PluginMethod
@@ -456,6 +458,17 @@ class NativeCryptoPlugin : Plugin() {
         val psk = str(call, "pskB64") ?: return
         call.runCrypto {
             val s = uniffi.vault_crypto.handshakeEnrollInitiator(priv, psk)
+            call.resolve(JSObject().put("sessionId", s.sessionId.toLong()).put("message", s.message))
+        }
+    }
+
+    @PluginMethod
+    fun handshakeEnrollInitiatorPinned(call: PluginCall) {
+        val priv = str(call, "localPrivB64") ?: return
+        val psk = str(call, "pskB64") ?: return
+        val expectedRemote = str(call, "expectedRemoteB64") ?: return
+        call.runCrypto {
+            val s = uniffi.vault_crypto.handshakeEnrollInitiatorPinned(priv, psk, expectedRemote)
             call.resolve(JSObject().put("sessionId", s.sessionId.toLong()).put("message", s.message))
         }
     }

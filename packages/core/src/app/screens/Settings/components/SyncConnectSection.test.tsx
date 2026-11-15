@@ -421,3 +421,9 @@ describe("device names", () => {
 		expect(screen.queryByRole("button", { name: /^Rename/ })).toBeNull();
 	});
 });
+
+it("warns that the enrollment code is private before offering to add a device", async () => {
+	mount();
+	expect(await screen.findByText(/Keep it private while it is on screen/)).toBeTruthy();
+	expect(screen.queryByText(/No vault secrets/)).toBeNull();
+});

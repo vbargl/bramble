@@ -367,6 +367,10 @@ msgstr "데스크톱의 저장소 추가"
 msgid "Add the websites this login covers. Leave empty for a credential not tied to a site."
 msgstr "이 로그인이 적용되는 웹사이트를 추가하세요. 사이트에 연결되지 않은 자격 증명은 비워 두세요."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "Add to the SSH agent while the vault is unlocked"
+msgstr "보관함이 잠금 해제된 동안 SSH 에이전트에 추가"
+
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "Add URL"
 msgstr "URL 추가"
@@ -1395,7 +1399,7 @@ msgstr "데스크톱 앱"
 msgid "Details"
 msgstr "세부 정보"
 
-#: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
+#: packages/core/src/app/screens/Settings/components/DeviceNameField.tsx
 msgid "Device name"
 msgstr "기기 이름"
 
@@ -1433,6 +1437,10 @@ msgstr "연결 해제"
 #: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 msgid "Disconnect this browser"
 msgstr "이 브라우저 연결 해제"
+
+#: packages/core/src/hooks/useVault.tsx
+#~ msgid "Disconnect this device from sync before rotating its vault key."
+#~ msgstr "보관함 키를 변경하기 전에 이 기기의 동기화를 해제하세요."
 
 #: packages/core/src/hooks/useVault.tsx
 msgid "Disconnect this device from sync before turning off the master password."
@@ -1769,8 +1777,8 @@ msgid "Generate a new code"
 msgstr "새 코드 생성"
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
-msgstr "일회용 페어링 코드를 생성하고 기기가 페어링에 참여할 때까지 대기합니다. 코드에는 보관함 기밀이 포함되지 않습니다."
+msgid "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
+msgstr "다른 기기를 위한 일회용 페어링 코드를 생성합니다. 화면에 표시되는 동안 코드를 비공개로 유지하세요."
 
 #: packages/core/src/app/components/PasswordGenerator.tsx
 msgid "Generate another"
@@ -2414,6 +2422,10 @@ msgstr "이 사이트에는 저장 카드가 없습니다. 다시 표시하려�
 msgid "No security key registered on this vault."
 msgstr "이 볼트에 등록된 보안 키가 없습니다."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "No SSH agent is running, so this key was not added."
+msgstr "실행 중인 SSH 에이전트가 없어 이 키를 추가하지 못했습니다."
+
 #. placeholder {0}: shell.appName
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "No transfer is waiting. Start one from the other app and pick {0}."
@@ -2514,6 +2526,10 @@ msgstr "로그인 저장 제안"
 #: packages/core/src/app/components/SasDisplay.tsx
 msgid "Older version on the other device? Compare this instead:"
 msgstr "다른 기기에 이전 버전이 있나요? 대신 이것을 비교하세요:"
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "On this device only. The key leaves the agent when the vault locks."
+msgstr "이 기기에만 적용됩니다. 보관함이 잠기면 키가 에이전트에서 제거됩니다."
 
 #: packages/core/src/app/screens/Settings/components/BackupSection.tsx
 msgid "One-click sign-in for {name} is coming in a future update. For now, pick a provider under \"Bring your own storage\"."
@@ -2980,7 +2996,9 @@ msgstr "{removed} 태그를 제거했습니다. {0}개 태그."
 msgid "Removing…"
 msgstr "제거 중…"
 
+#. placeholder {0}: browser.label
 #. placeholder {0}: nameOf(d) || "device"
+#: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "Rename {0}"
 msgstr "{0} 이름 변경"
@@ -3217,8 +3235,8 @@ msgid "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key
 msgstr "사이트의 2FA 페이지에서 QR을 스캔하거나 otpauth:// URI 또는 설정 키를 붙여넣으세요."
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
-msgstr "다른 기기에서 이 코드를 스캔하거나 아래 코드를 복사하세요. 비밀로 유지하세요. 이 창이 열려 있는 동안 코드를 본 사람은 누구나 참여를 시도할 수 있습니다. 전송 전에 두 기기에서 일치하는 번호를 확인하게 됩니다."
+msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
+msgstr "다른 기기에서 스캔하거나 아래 코드를 복사하세요. 이 창이 열려 있는 동안 코드를 본 사람은 참여를 시도할 수 있으므로 비공개로 유지하세요. 데이터를 보내기 전에 두 기기에 표시된 기호가 일치하는지 확인합니다."
 
 #: packages/core/src/app/screens/VaultSetup/components/JoinCard.tsx
 msgid "Scanning…"
@@ -3751,9 +3769,17 @@ msgstr "이 파일에 새로 추가된 항목은 첨부 파일뿐이며, 이 브
 msgid "The other version"
 msgstr "다른 버전"
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The passphrase does not open this private key, so it was not added."
+msgstr "암호 문구로 이 개인 키를 열 수 없어 추가하지 못했습니다."
+
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "The signaling relay that introduces devices. Defaults to the hosted relay; point it at your own or any public Nostr relay."
 msgstr "기기를 연결해 주는 시그널링 릴레이입니다. 기본값은 호스팅 릴레이이며, 자체 릴레이 또는 공개 Nostr 릴레이를 지정할 수 있습니다."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The SSH agent refused this key."
+msgstr "SSH 에이전트가 이 키를 거부했습니다."
 
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "The vault locked, so the attachments read from that file were cleared. Open it again to import them."
@@ -3924,6 +3950,10 @@ msgstr "이 로그인에는 패스키가 있습니다."
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "This password appeared in a known data breach."
 msgstr "이 비밀번호는 알려진 데이터 유출에서 발견되었습니다."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "This private key is not in OpenSSH format, so it was not added."
+msgstr "이 개인 키는 OpenSSH 형식이 아니어서 추가하지 못했습니다."
 
 #: packages/core/src/app/screens/Settings/components/DeleteVaultSection.tsx
 msgid "This removes the vault from this device. Synced copies on your other devices aren't affected, and this can't be undone here. Confirm to continue."

@@ -4,9 +4,12 @@ import { useLingui } from "@lingui/react/macro";
 import { Check, Copy, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
+import type { SshAgentRefusal } from "../../adapters/ssh-agent";
+import { useSshAgentKey } from "../../hooks/useSshAgent";
 import type { SshKeyEntry, SshKeyEntryData } from "../../hooks/useVault";
 import { deriveKeyType, sshFingerprint } from "../../util/ssh";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { SecretArea } from "../components/ui/secret-area";
 import { TextArea } from "../components/ui/text-area";
 import { TextField } from "../components/ui/text-field";
@@ -124,6 +127,41 @@ function KeyBlock({ label, value, copyName, copied, onCopy, secret }: KeyBlockPr
 	);
 }
 
+function refusalText(refusal: SshAgentRefusal): string {
+	switch (refusal) {
+		case "no-agent":
+			return i18n._(msg`No SSH agent is running, so this key was not added.`);
+		case "unsupported-key":
+			return i18n._(msg`This private key is not in OpenSSH format, so it was not added.`);
+		case "wrong-passphrase":
+			return i18n._(msg`The passphrase does not open this private key, so it was not added.`);
+		case "refused":
+			return i18n._(msg`The SSH agent refused this key.`);
+	}
+}
+
+/** This device's choice to hand the key to the ssh-agent. Renders nothing where there is none. */
+function AgentToggle({ entryId }: { entryId: string }) {
+	const { t } = useLingui();
+	const { available, ticked, refusal, setTicked } = useSshAgentKey(entryId);
+	if (!available) return null;
+	return (
+		<div className="space-y-1.5">
+			<Checkbox checked={ticked} onChange={(on) => void setTicked(on)} className="text-sm">
+				{t`Add to the SSH agent while the vault is unlocked`}
+			</Checkbox>
+			<p className="text-xs text-muted-foreground">
+				{t`On this device only. The key leaves the agent when the vault locks.`}
+			</p>
+			{refusal && (
+				<p role="alert" className="text-xs text-destructive">
+					{refusalText(refusal)}
+				</p>
+			)}
+		</div>
+	);
+}
+
 function SshKeyDetail({ entry, copied, copy }: EntryDetailBodyProps) {
 	const key = entry as SshKeyEntry;
 	const { t } = useLingui();
@@ -160,6 +198,8 @@ function SshKeyDetail({ entry, copied, copy }: EntryDetailBodyProps) {
 				onCopy={() => copy("private key", key.privateKey)}
 				secret
 			/>
+
+			{key.privateKey && <AgentToggle entryId={key.id} />}
 
 			{key.passphrase && (
 				<DetailField

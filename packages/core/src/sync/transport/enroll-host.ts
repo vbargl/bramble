@@ -62,6 +62,11 @@ interface EnrollHandshakeWasm extends PumpWasm {
 		privB64: string,
 		pskB64: string,
 	): Awaitable<{ sessionId: number; message: string }>;
+	handshake_enroll_initiator_pinned(
+		privB64: string,
+		pskB64: string,
+		expectedRemoteB64: string,
+	): Awaitable<{ sessionId: number; message: string }>;
 	handshake_enroll_responder(privB64: string, pskB64: string): Awaitable<number>;
 	handshake_encrypt(sessionId: number, plaintext: string): Awaitable<string>;
 	handshake_decrypt(sessionId: number, ciphertextB64: string): Awaitable<string>;
@@ -258,13 +263,17 @@ export function makeEnrollHandler(
 	return async (peer: PeerSession): Promise<void> => {
 		const { channel, remotePubkey } = peer;
 		opts.report(`channel open with ${remotePubkey.slice(0, 8)}: authenticating…`);
+		if (role === "joiner" && !opts.inviterPub)
+			throw new Error("enroll: joining without an inviter key to pin");
 		const { wasm, devicePrivB64: priv, psk } = opts;
 		let sess: Session;
 		try {
 			sess = await withTimeout(
 				role === "inviter"
 					? runResponder(wasm, channel, () => wasm.handshake_enroll_responder(priv, psk))
-					: runInitiator(wasm, channel, () => wasm.handshake_enroll_initiator(priv, psk)),
+					: runInitiator(wasm, channel, () =>
+							wasm.handshake_enroll_initiator_pinned(priv, psk, opts.inviterPub!),
+						),
 				ENROLL_TIMEOUT_MS,
 				"enrollment handshake",
 			);

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 // Control the NativeCrypto plugin that registerPlugin() returns at import time.
 const native = vi.hoisted(() => ({
+	generateVek: vi.fn(async () => ({ value: "STALE_PLUGIN_KEY" })),
+	rotateVek: vi.fn(async () => ({ value: "STALE_PLUGIN_KEY" })),
 	mailboxId: vi.fn(async () => ({ value: "id" })),
 	mailboxSeal: vi.fn(async () => ({ value: "sealed" })),
 	mailboxOpen: vi.fn(async () => ({ value: "opened" })),
@@ -20,4 +22,12 @@ describe("native crypto: mailbox", () => {
 		expect(native.mailboxSeal).toHaveBeenCalledWith({ groupKeyB64: "G", aad: "A", plaintext: "P" });
 		expect(native.mailboxOpen).toHaveBeenCalledWith({ groupKeyB64: "G", aad: "A", sealedB64: "S" });
 	});
+});
+
+it("native creation and rotation resolve without a serialized vault key", async () => {
+	const crypto = await loadNativeCrypto();
+	expect(await crypto.generate_vek()).toBeUndefined();
+	expect(await crypto.rotate_vek()).toBeUndefined();
+	expect(native.generateVek).toHaveBeenCalled();
+	expect(native.rotateVek).toHaveBeenCalled();
 });

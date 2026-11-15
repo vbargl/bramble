@@ -1870,12 +1870,26 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			if ((vaultStateRef.current.manifest?.files?.length ?? 0) > 0) {
 				throw new Error(t`Rotating the key isn't available yet for a vault with attachments.`);
 			}
+
+			// Persist the disconnect before stopping: a racing resume must not rediscover the old
+			// group. A new encryption epoch is shared only through fresh, approved pairing.
+			await storage.removeMeta(syncKey("sync.group"));
+			await shell.stopSyncSpike();
+			await storage.removeMeta(syncKey("sync.group"));
+			await storage.removeMeta(syncKey("sync.admissionSalt"));
+			await storage.removeMeta(syncKey("sync.lastSyncedAt"));
 			// Read before rotating: this is the last moment the old key can open anything.
 			const { blob } = await readDecodedBlob();
 			const snapshot = snapshotEntries();
 			// Sibling versions are sealed under DEKs the old key wraps, so open them while it exists.
 			const conflictPlaintexts = await mutations.openConflicts(snapshot);
 
+			// Biometric caches wrap the old VEK. Forget them before replacement, even if rotation
+			// later fails and restores the old file. Never retain a stale automatic unlock key.
+			if (biometric && activeId) {
+				await biometric.disable(activeId);
+				setBiometricEnabled(false);
+			}
 			await crypto.rotateVek();
 			// From here the old key is gone. Everything below re-derives from plaintext held in
 			// memory, and any failure has to end in a restore.
@@ -1945,8 +1959,12 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 			wrapPasswordSlot,
 			wrapRecoverySlot,
 			storage,
+			syncKey,
+			shell,
 			refreshSlotMetadata,
 			loadEntries,
+			biometric,
+			activeId,
 		],
 	);
 

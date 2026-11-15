@@ -41,6 +41,9 @@ export interface PairingAdapter {
 	/** Revoke a browser from the vault open now. Its next connection fails, because its key is no
 	 * longer accepted there. */
 	forget(publicKey: string): Promise<boolean>;
+	/** Give a linked browser a name of the user's own, in place of the one it claimed. Display
+	 * only: the key stays the identity, so a rename admits and revokes nothing. */
+	rename?(publicKey: string, label: string): Promise<boolean>;
 	/**
 	 * Arm the sync invite a browser may claim over the link once it has linked, so connecting a
 	 * browser also brings it this vault.

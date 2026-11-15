@@ -73,6 +73,11 @@ chrono = "0.4"
 # handled while the vault may be locked; zeroize keeps freed copies from lingering.
 zeroize = { version = "1.8", features = ["derive"] }
 sys-locale = "0.3"
+# Reads an OpenSSH private key, decrypting it with the entry's passphrase, into the form the
+# agent protocol wants. No signing features: the agent signs, this only hands the key over.
+ssh-key = { version = "0.6.7", default-features = false, features = ["std", "encryption", "ecdsa"] }
+# Its `Encode`, which ssh-key implements for a private key but does not re-export.
+ssh-encoding = "0.2"
 # Updating the app in place. Desktop-gated as the plugin's own docs show, so a future mobile
 # target does not try to build an updater that has no meaning there.
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

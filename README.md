@@ -67,7 +67,7 @@ The iOS and Android apps are versioned and released independently of the extensi
 
 ## On your desktop
 
-A native app for macOS and Linux, not a browser tab in a costume. It is built with Tauri, so the UI is the same React that runs everywhere else while the vault and every cryptographic operation live in a Rust process. The Vault Key never enters the webview at all.
+A native app for macOS and Linux, not a browser tab in a costume. It is built with Tauri, so the UI is the same React that runs everywhere else while the vault and every cryptographic operation live in a Rust process. Key creation and rotation keep new keys inside Rust; explicit key export, biometric and enrollment paths can still pass key material through the webview. See [key residency hardening](docs/vek-residency-hardening.md).
 
 - **Quick access over everything else.** Press Cmd+Shift+Space (Ctrl+Shift+Space off macOS) and a search bar appears over whatever you were doing. Find a login, copy its password, fill it into the browser, or open it in the app, then it gets back out of your way.
 - **It fills your browser.** Pair the app with the Bramble extension once and the panel fills the page in front of you, over an encrypted channel that never leaves your machine. Pairing only adds to the extension: it stays a standalone thing that never needs the app installed.

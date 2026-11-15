@@ -84,10 +84,10 @@ interface NativeCryptoPlugin {
 	readFileRange(o: { path: string; offset: number; length: number }): Promise<{ value: string }>;
 	isLocked(): Promise<{ value: boolean }>;
 	lock(): Promise<void>;
-	generateVek(): Promise<{ value: string }>;
+	generateVek(): Promise<void>;
 	unlockWithVek(o: { vekB64: string }): Promise<void>;
 	exportVek(): Promise<{ value: string }>;
-	rotateVek(): Promise<{ value: string }>;
+	rotateVek(): Promise<void>;
 	generateSalt(): Promise<{ value: string }>;
 	generateSlotId(): Promise<{ value: string }>;
 	wrapVekPassword(o: {
@@ -203,6 +203,11 @@ interface NativeCryptoPlugin {
 		localPrivB64: string;
 		pskB64: string;
 	}): Promise<{ sessionId: number; message: string }>;
+	handshakeEnrollInitiatorPinned(o: {
+		localPrivB64: string;
+		pskB64: string;
+		expectedRemoteB64: string;
+	}): Promise<{ sessionId: number; message: string }>;
 	handshakeEnrollResponder(o: { localPrivB64: string; pskB64: string }): Promise<{ value: number }>;
 	handshakeRead(o: {
 		sessionId: number;
@@ -245,10 +250,16 @@ const Native = registerPlugin<NativeCryptoPlugin>("NativeCrypto");
 const nativeModule: VaultCrypto = {
 	is_locked: async () => (await Native.isLocked()).value,
 	lock: () => Native.lock(),
-	generate_vek: async () => (await Native.generateVek()).value,
+	generate_vek: async () => {
+		await Native.generateVek();
+		return undefined;
+	},
 	unlock_with_vek: (vekB64) => Native.unlockWithVek({ vekB64 }),
 	export_vek: async () => (await Native.exportVek()).value,
-	rotate_vek: async () => (await Native.rotateVek()).value,
+	rotate_vek: async () => {
+		await Native.rotateVek();
+		return undefined;
+	},
 	generate_salt: async () => (await Native.generateSalt()).value,
 	generate_slot_id: async () => (await Native.generateSlotId()).value,
 
@@ -428,6 +439,8 @@ export const nativeSyncCrypto = {
 		(await Native.handshakeStartResponder({ localPrivB64: privB64, remotePubB64 })).value,
 	handshake_enroll_initiator: (privB64: string, pskB64: string) =>
 		Native.handshakeEnrollInitiator({ localPrivB64: privB64, pskB64 }),
+	handshake_enroll_initiator_pinned: (privB64: string, pskB64: string, expectedRemoteB64: string) =>
+		Native.handshakeEnrollInitiatorPinned({ localPrivB64: privB64, pskB64, expectedRemoteB64 }),
 	handshake_enroll_responder: async (privB64: string, pskB64: string) =>
 		(await Native.handshakeEnrollResponder({ localPrivB64: privB64, pskB64 })).value,
 	handshake_read: (sessionId: number, messageB64: string) =>

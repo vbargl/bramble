@@ -1,8 +1,8 @@
 //! The vault crypto core, exposed to the webview as Tauri commands.
 //!
 //! Every command is a thin wrapper over `vault_crypto`, which this crate links as an
-//! ordinary cargo dependency. The VEK therefore lives in this process and never crosses
-//! into the webview, which is the desktop equivalent of the extension's offscreen document
+//! ordinary cargo dependency. The VEK lives in this process for crypto operations. Explicit export and enrollment
+//! can still pass it through the webview, which is the desktop equivalent of the extension's offscreen document
 //! and mobile's native plugin. See docs/desktop-port.md.
 //!
 //! The core's structs already serialize camelCase, so they land on the TS side matching
@@ -32,12 +32,13 @@ pub fn crypto_is_locked() -> bool {
 
 #[tauri::command]
 pub fn crypto_lock() {
-    vault_crypto::lock()
+    vault_crypto::lock();
+    crate::ssh_agent::clear();
 }
 
 #[tauri::command]
-pub fn crypto_generate_vek() -> CmdResult<String> {
-    map(vault_crypto::generate_vek())
+pub fn crypto_generate_vek() -> CmdResult<()> {
+    map(vault_crypto::generate_vek_in_place())
 }
 
 #[tauri::command]
@@ -51,8 +52,8 @@ pub fn crypto_export_vek() -> CmdResult<String> {
 }
 
 #[tauri::command]
-pub fn crypto_rotate_vek() -> CmdResult<String> {
-    map(vault_crypto::rotate_vek())
+pub fn crypto_rotate_vek() -> CmdResult<()> {
+    map(vault_crypto::rotate_vek_in_place())
 }
 
 // ---- slot material ----

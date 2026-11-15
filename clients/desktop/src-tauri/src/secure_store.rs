@@ -13,13 +13,18 @@
 //! stable a fact as a present one.
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
+    path::Path,
     sync::{Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
 use serde::Serialize;
+use serde_json::{json, Map, Value};
+use tauri::AppHandle;
 use zeroize::Zeroizing;
+
+use crate::storage;
 
 type Res<T> = Result<T, String>;
 
@@ -277,22 +282,164 @@ fn reserved(key: &str) -> Res<()> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn secure_get(key: String) -> Res<Option<String>> {
-    reserved(&key)?;
-    read(&key)
+// ---- sealed copies ----
+//
+// The kernel keyring does not outlast a reboot, and with it goes this device's sync identity. So a
+// copy sealed under the vault key is kept in meta.json, which never leaves the device, and put
+// back the next time the vault is unlocked. One copy per vault, since only the open vault's key
+// is in memory. Backup credentials have their own tiers and are not copied.
+
+const SEALED_PREFIX: &str = "secure.sealed:";
+
+/// The device's own identities: the sync keys, and the key the browser links authenticate against.
+/// Losing the second leaves every linked browser listed and unable to connect.
+fn sealable(account: &str) -> bool {
+    account.starts_with("sync.") || account == crate::pairing::KEYCHAIN_ACCOUNT
+}
+
+fn sealed_key(account: &str) -> String {
+    format!("{SEALED_PREFIX}{account}")
+}
+
+/// (vault, account) pairs whose current value is already sealed, so a read does not rewrite
+/// meta.json. A write drops its account's entries.
+static SEALED: Mutex<BTreeSet<(String, String)>> = Mutex::new(BTreeSet::new());
+
+fn sealed_copies(root: &Path, account: &str) -> Res<Map<String, Value>> {
+    Ok(match storage::ops::get_meta(root, &sealed_key(account))? {
+        Some(Value::Object(copies)) => copies,
+        _ => Map::new(),
+    })
+}
+
+/// The vault whose key would open a copy: only meaningful while unlocked.
+pub(crate) fn sealing_vault(root: &Path) -> Res<Option<String>> {
+    if vault_crypto::is_locked() {
+        return Ok(None);
+    }
+    crate::pairing::open_vault_id(root)
+}
+
+fn seal(root: &Path, account: &str, value: &str) -> Res<()> {
+    let Some(vault) = sealing_vault(root)? else {
+        return Ok(());
+    };
+    // The account is inside the seal, so a copy moved to another account is refused.
+    let sealed = vault_crypto::encrypt_with_vek(format!("{account}\n{value}"))
+        .map_err(|e| e.to_string())?;
+    let mut copies = sealed_copies(root, account)?;
+    copies.insert(
+        vault.clone(),
+        json!({ "iv": sealed.iv, "ciphertext": sealed.ciphertext }),
+    );
+    storage::ops::set_meta(root, sealed_key(account), Value::Object(copies))?;
+    SEALED.lock().unwrap().insert((vault, account.to_string()));
+    Ok(())
+}
+
+/// A copy the open vault's key cannot open is stale, not an error: it reads as absent.
+fn unseal(root: &Path, account: &str) -> Res<Option<String>> {
+    let Some(vault) = sealing_vault(root)? else {
+        return Ok(None);
+    };
+    let copies = sealed_copies(root, account)?;
+    let copy = copies.get(&vault);
+    let (Some(iv), Some(ciphertext)) = (
+        copy.and_then(|c| c["iv"].as_str()),
+        copy.and_then(|c| c["ciphertext"].as_str()),
+    ) else {
+        return Ok(None);
+    };
+    let plain = vault_crypto::decrypt_with_vek(iv.to_string(), ciphertext.to_string()).ok();
+    Ok(plain.and_then(|p| {
+        p.strip_prefix(&format!("{account}\n"))
+            .map(str::to_string)
+    }))
+}
+
+/// `read`, except that a device-identity value the credential store has lost is restored from its
+/// sealed copy once the vault is unlocked, and a present one is sealed if it is not yet.
+pub fn read_durable(root: &Path, account: &str) -> Res<Option<String>> {
+    let found = read(account)?;
+    if !sealable(account) {
+        return Ok(found);
+    }
+    match found {
+        Some(value) => {
+            if let Some(vault) = sealing_vault(root)? {
+                let done = SEALED
+                    .lock()
+                    .unwrap()
+                    .contains(&(vault, account.to_string()));
+                if !done {
+                    if let Err(e) = seal(root, account, &value) {
+                        log::warn!("could not seal {account} under the vault key: {e}");
+                    }
+                }
+            }
+            Ok(Some(value))
+        }
+        None => {
+            let Some(value) = unseal(root, account)? else {
+                return Ok(None);
+            };
+            if let Err(e) = write(account, &value) {
+                log::warn!("restored {account} but could not write it back: {e}");
+            }
+            Ok(Some(value))
+        }
+    }
+}
+
+pub fn write_durable(root: &Path, account: &str, value: &str) -> Res<()> {
+    write(account, value)?;
+    if sealable(account) {
+        SEALED.lock().unwrap().retain(|(_, a)| a != account);
+        if let Err(e) = seal(root, account, value) {
+            log::warn!("could not seal {account} under the vault key: {e}");
+        }
+    }
+    Ok(())
+}
+
+/// Takes every vault's copy with it: a reset identity must not come back from a seal.
+pub fn erase_durable(root: &Path, account: &str) -> Res<()> {
+    erase(account)?;
+    if sealable(account) {
+        SEALED.lock().unwrap().retain(|(_, a)| a != account);
+        storage::ops::remove_meta(root, &sealed_key(account))?;
+    }
+    Ok(())
+}
+
+fn get(root: &Path, key: &str) -> Res<Option<String>> {
+    reserved(key)?;
+    read_durable(root, key)
+}
+
+fn set(root: &Path, key: &str, value: &str) -> Res<()> {
+    reserved(key)?;
+    write_durable(root, key, value)
+}
+
+fn delete(root: &Path, key: &str) -> Res<()> {
+    reserved(key)?;
+    erase_durable(root, key)
 }
 
 #[tauri::command]
-pub fn secure_set(key: String, value: String) -> Res<()> {
-    reserved(&key)?;
-    write(&key, &value)
+pub fn secure_get(app: AppHandle, key: String) -> Res<Option<String>> {
+    get(&storage::data_dir(&app)?, &key)
 }
 
 #[tauri::command]
-pub fn secure_delete(key: String) -> Res<()> {
-    reserved(&key)?;
-    erase(&key)
+pub fn secure_set(app: AppHandle, key: String, value: String) -> Res<()> {
+    set(&storage::data_dir(&app)?, &key, &value)
+}
+
+#[tauri::command]
+pub fn secure_delete(app: AppHandle, key: String) -> Res<()> {
+    delete(&storage::data_dir(&app)?, &key)
 }
 
 #[cfg(test)]
@@ -303,6 +450,8 @@ mod tests {
     fn setup() -> std::sync::MutexGuard<'static, ()> {
         let guard = crate::pairing::test_lock();
         *CACHE.lock().unwrap() = None;
+        SEALED.lock().unwrap().clear();
+        vault_crypto::lock();
         guard
     }
 
@@ -336,20 +485,152 @@ mod tests {
     #[test]
     fn reserved_accounts_are_refused_through_the_commands() {
         let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
         write("backup.creds:v1:t1", "secret").unwrap();
-        assert!(secure_get("backup.creds:v1:t1".into()).is_err());
-        assert!(secure_set("backup.creds:v1:t1".into(), "other".into()).is_err());
-        assert!(secure_delete("backup.creds:v1:t1".into()).is_err());
+        assert!(get(root, "backup.creds:v1:t1").is_err());
+        assert!(set(root, "backup.creds:v1:t1", "other").is_err());
+        assert!(delete(root, "backup.creds:v1:t1").is_err());
         // ...and the value is untouched by the refused writes.
         assert_eq!(read("backup.creds:v1:t1").unwrap(), Some("secret".into()));
-        assert!(secure_get(crate::pairing::KEYCHAIN_ACCOUNT.into()).is_err());
-        assert!(secure_set(crate::pairing::KEYCHAIN_ACCOUNT.into(), "{}".into()).is_err());
+        assert!(get(root, crate::pairing::KEYCHAIN_ACCOUNT).is_err());
+        assert!(set(root, crate::pairing::KEYCHAIN_ACCOUNT, "{}").is_err());
         // Everything else still works.
-        assert!(secure_set("sync.deviceKeypair".into(), "kp".into()).is_ok());
+        assert!(set(root, "sync.deviceKeypair", "kp").is_ok());
         assert_eq!(
-            secure_get("sync.deviceKeypair".into()).unwrap(),
+            get(root, "sync.deviceKeypair").unwrap(),
             Some("kp".into())
         );
+    }
+
+    /// What a reboot does to the kernel keyring: the value is gone, the app data is not.
+    fn lose_credential_store() {
+        *CACHE.lock().unwrap() = None;
+        SEALED.lock().unwrap().clear();
+    }
+
+    fn unlocked() -> String {
+        vault_crypto::generate_vek_in_place().unwrap();
+        vault_crypto::export_vek().unwrap()
+    }
+
+    #[test]
+    fn a_lost_identity_comes_back_when_the_vault_unlocks() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        let vek = unlocked();
+        set(dir.path(), "sync.deviceKeypair", "kp").unwrap();
+
+        lose_credential_store();
+        vault_crypto::lock();
+        // Locked, there is nothing to open the copy with: absent, not an error.
+        assert_eq!(get(dir.path(), "sync.deviceKeypair").unwrap(), None);
+
+        vault_crypto::unlock_with_vek(vek).unwrap();
+        assert_eq!(
+            get(dir.path(), "sync.deviceKeypair").unwrap(),
+            Some("kp".into())
+        );
+        // Restored into the store too, so the next read does not need the copy.
+        assert_eq!(cached("sync.deviceKeypair"), Some(Some("kp".into())));
+    }
+
+    #[test]
+    fn a_lost_link_identity_comes_back_when_the_vault_unlocks() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        let account = crate::pairing::KEYCHAIN_ACCOUNT;
+        let vek = unlocked();
+        // The app writes it itself: the webview may not (see `reserved`).
+        write_durable(dir.path(), account, "link-identity").unwrap();
+        assert!(set(dir.path(), account, "x").is_err());
+
+        lose_credential_store();
+        vault_crypto::lock();
+        assert_eq!(read_durable(dir.path(), account).unwrap(), None);
+
+        vault_crypto::unlock_with_vek(vek).unwrap();
+        assert_eq!(
+            read_durable(dir.path(), account).unwrap(),
+            Some("link-identity".into())
+        );
+    }
+
+    #[test]
+    fn a_value_found_in_the_store_is_sealed_on_first_read() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        // Written while locked (or by a build that predates sealing): no copy yet.
+        write("sync.signingKey", "sk").unwrap();
+        assert!(storage::ops::get_meta(dir.path(), &sealed_key("sync.signingKey"))
+            .unwrap()
+            .is_none());
+
+        let vek = unlocked();
+        assert_eq!(get(dir.path(), "sync.signingKey").unwrap(), Some("sk".into()));
+
+        lose_credential_store();
+        vault_crypto::lock();
+        vault_crypto::unlock_with_vek(vek).unwrap();
+        assert_eq!(get(dir.path(), "sync.signingKey").unwrap(), Some("sk".into()));
+    }
+
+    #[test]
+    fn the_copy_is_not_plaintext_and_other_accounts_are_not_copied() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        unlocked();
+        set(dir.path(), "sync.deviceKeypair", "very-secret-value").unwrap();
+        write_durable(dir.path(), "backup.creds:v1:t1", "cloud-secret").unwrap();
+        let meta = std::fs::read_to_string(dir.path().join("meta.json")).unwrap();
+        assert!(!meta.contains("very-secret-value"));
+        assert!(!meta.contains("cloud-secret"));
+        assert!(!meta.contains("backup.creds"));
+    }
+
+    #[test]
+    fn a_reset_identity_does_not_come_back() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        unlocked();
+        set(dir.path(), "sync.deviceKeypair", "kp").unwrap();
+        delete(dir.path(), "sync.deviceKeypair").unwrap();
+        lose_credential_store();
+        assert_eq!(get(dir.path(), "sync.deviceKeypair").unwrap(), None);
+    }
+
+    #[test]
+    fn another_vaults_key_does_not_open_the_copy() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        storage::ops::set_meta(dir.path(), "active-vault".into(), json!("a")).unwrap();
+        unlocked();
+        set(dir.path(), "sync.deviceKeypair", "kp").unwrap();
+
+        // Vault b, with its own key: no copy for it, and a's is not tried.
+        lose_credential_store();
+        storage::ops::set_meta(dir.path(), "active-vault".into(), json!("b")).unwrap();
+        unlocked();
+        assert_eq!(get(dir.path(), "sync.deviceKeypair").unwrap(), None);
+
+        // Sealing for b leaves a's copy in place.
+        set(dir.path(), "sync.deviceKeypair", "kp").unwrap();
+        let copies = sealed_copies(dir.path(), "sync.deviceKeypair").unwrap();
+        assert!(copies.contains_key("a") && copies.contains_key("b"));
+    }
+
+    #[test]
+    fn a_copy_moved_to_another_account_is_refused() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        unlocked();
+        set(dir.path(), "sync.deviceKeypair", "kp").unwrap();
+        let moved = storage::ops::get_meta(dir.path(), &sealed_key("sync.deviceKeypair"))
+            .unwrap()
+            .unwrap();
+        storage::ops::set_meta(dir.path(), sealed_key("sync.signingKey"), moved).unwrap();
+        lose_credential_store();
+        assert_eq!(get(dir.path(), "sync.signingKey").unwrap(), None);
     }
 
     // Device identity is read constantly and stays cached for the process lifetime, which is what

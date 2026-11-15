@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlatform } from "../context/PlatformContext";
 import { usePendingHandoffs } from "../hooks/usePendingHandoffs";
 import { PrefsProvider } from "../hooks/usePrefs";
+import { useSshAgentSync } from "../hooks/useSshAgent";
 import { useVault, VaultProvider } from "../hooks/useVault";
 import { useVaultRegistry, VaultRegistryProvider } from "../hooks/useVaultRegistry";
 import { setAppBackHandler } from "./android-back";
@@ -81,6 +82,7 @@ function InnerApp({
 	// Mobile: persist passkeys the native provider minted, and apply the associations
 	// a confirmed "fill and save" pick handed over.
 	usePendingHandoffs();
+	useSshAgentSync();
 
 	// Stash the current route so a closed-then-reopened popup resumes it (restore in the
 	// platform boot, gated on an unlocked session). Skip the "/" unlock/redirect route, so a

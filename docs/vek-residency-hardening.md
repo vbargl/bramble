@@ -163,3 +163,12 @@ remaining crossing.
   lock policy bounds it, not storage location.
 - **Transient native strings** inside the app process (item 4 residual) until the uniffi `bytes`
   polish is done.
+
+## Native lifecycle hardening on this branch
+
+Native create/rotate operations now resolve without key material. Their Rust entrypoints use
+zeroizing random bytes and do not create a base64 key string. The browser-extension adapter
+still receives a key for its deliberate session cache. Explicit export, biometric unlock,
+and enrollment still cross the bridge; this is a partial residency reduction, not a native-only
+key boundary. Eliminating the enrollment crossing requires a session-scoped native snapshot
+and a native joiner rebuild; changing only the inviter would leave the joiner's crossing intact.

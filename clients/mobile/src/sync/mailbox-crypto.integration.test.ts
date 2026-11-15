@@ -49,7 +49,8 @@ function port(secretKey: string): MailboxCryptoPort {
 
 describe("mailbox envelope over the real core", () => {
 	it("seals with one device's roster key and opens on another of the same vault", async () => {
-		const vek = await crypto.generateVek();
+		await crypto.generateVek();
+		const vek = await crypto.exportVek();
 		const sender = wasm.roster_sig_generate_key();
 		const receiver = wasm.roster_sig_generate_key();
 		const mailboxId = await crypto.mailboxId!(GROUP);

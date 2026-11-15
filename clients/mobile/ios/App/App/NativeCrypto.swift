@@ -45,6 +45,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 		CAPPluginMethod(name: "handshakeStartInitiator", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeStartResponder", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEnrollInitiator", returnType: CAPPluginReturnPromise),
+		CAPPluginMethod(name: "handshakeEnrollInitiatorPinned", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEnrollResponder", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeRead", returnType: CAPPluginReturnPromise),
 		CAPPluginMethod(name: "handshakeEncrypt", returnType: CAPPluginReturnPromise),
@@ -122,7 +123,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 	}
 
 	@objc func generateVek(_ call: CAPPluginCall) {
-		do { call.resolve(["value": try App.generateVek()]) } catch { fail(call, error) }
+		do { try App.generateVekInPlace(); call.resolve() } catch { fail(call, error) }
 	}
 
 	@objc func unlockWithVek(_ call: CAPPluginCall) {
@@ -135,7 +136,7 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 	}
 
 	@objc func rotateVek(_ call: CAPPluginCall) {
-		do { call.resolve(["value": try App.rotateVek()]) } catch { fail(call, error) }
+		do { try App.rotateVekInPlace(); call.resolve() } catch { fail(call, error) }
 	}
 
 	@objc func generateSalt(_ call: CAPPluginCall) {
@@ -410,6 +411,14 @@ public class NativeCryptoPlugin: CAPPlugin, CAPBridgedPlugin {
 		guard let priv = str(call, "localPrivB64"), let psk = str(call, "pskB64") else { return }
 		do {
 			let s = try App.handshakeEnrollInitiator(localPrivB64: priv, pskB64: psk)
+			call.resolve(["sessionId": Int(s.sessionId), "message": s.message])
+		} catch { fail(call, error) }
+	}
+
+	@objc func handshakeEnrollInitiatorPinned(_ call: CAPPluginCall) {
+		guard let priv = str(call, "localPrivB64"), let psk = str(call, "pskB64"), let expectedRemote = str(call, "expectedRemoteB64") else { return }
+		do {
+			let s = try App.handshakeEnrollInitiatorPinned(localPrivB64: priv, pskB64: psk, expectedRemoteB64: expectedRemote)
 			call.resolve(["sessionId": Int(s.sessionId), "message": s.message])
 		} catch { fail(call, error) }
 	}

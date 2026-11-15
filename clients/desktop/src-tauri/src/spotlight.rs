@@ -78,8 +78,12 @@ pub fn apply_backdrop(window: &WebviewWindow) {
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = window;
-        log::info!("spotlight backdrop: no blur on this platform, panel stays opaque");
+        // The page is transparent for native blur on macOS/Windows. Linux has no
+        // such backdrop, so explicitly paint an opaque webview/window background.
+        match window.set_background_color(Some(tauri::window::Color(24, 24, 27, 255))) {
+            Ok(()) => log::info!("spotlight backdrop: opaque fallback applied"),
+            Err(e) => log::warn!("spotlight opaque backdrop unavailable: {e}"),
+        }
     }
 }
 

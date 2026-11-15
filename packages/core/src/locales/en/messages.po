@@ -446,6 +446,10 @@ msgstr "Add the desktop's vault"
 msgid "Add the websites this login covers. Leave empty for a credential not tied to a site."
 msgstr "Add the websites this login covers. Leave empty for a credential not tied to a site."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "Add to the SSH agent while the vault is unlocked"
+msgstr "Add to the SSH agent while the vault is unlocked"
+
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "Add URL"
 msgstr "Add URL"
@@ -1539,7 +1543,7 @@ msgstr "Desktop app"
 msgid "Details"
 msgstr "Details"
 
-#: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
+#: packages/core/src/app/screens/Settings/components/DeviceNameField.tsx
 msgid "Device name"
 msgstr "Device name"
 
@@ -1577,6 +1581,10 @@ msgstr "Disconnect"
 #: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 msgid "Disconnect this browser"
 msgstr "Disconnect this browser"
+
+#: packages/core/src/hooks/useVault.tsx
+#~ msgid "Disconnect this device from sync before rotating its vault key."
+#~ msgstr "Disconnect this device from sync before rotating its vault key."
 
 #: packages/core/src/hooks/useVault.tsx
 msgid "Disconnect this device from sync before turning off the master password."
@@ -1941,8 +1949,8 @@ msgid "Generate a new code"
 msgstr "Generate a new code"
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
-msgstr "Generate a one-time pairing code and listen for a device to join. No vault secrets in the code."
+msgid "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
+msgstr "Generate a one-time pairing code for your other device. Keep it private while it is on screen."
 
 #: packages/core/src/app/components/PasswordGenerator.tsx
 msgid "Generate another"
@@ -2671,6 +2679,10 @@ msgstr "No save card on this site. Remove to start prompting again."
 msgid "No security key registered on this vault."
 msgstr "No security key registered on this vault."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "No SSH agent is running, so this key was not added."
+msgstr "No SSH agent is running, so this key was not added."
+
 #. placeholder {0}: shell.appName
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "No transfer is waiting. Start one from the other app and pick {0}."
@@ -2787,6 +2799,10 @@ msgstr "Offer to save logins"
 #: packages/core/src/app/components/SasDisplay.tsx
 msgid "Older version on the other device? Compare this instead:"
 msgstr "Older version on the other device? Compare this instead:"
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "On this device only. The key leaves the agent when the vault locks."
+msgstr "On this device only. The key leaves the agent when the vault locks."
 
 #: packages/core/src/app/screens/Settings/components/BackupSection.tsx
 msgid "One-click sign-in for {name} is coming in a future update. For now, pick a provider under \"Bring your own storage\"."
@@ -3289,7 +3305,9 @@ msgstr "Removed tag {removed}. {0} tags."
 msgid "Removing…"
 msgstr "Removing…"
 
+#. placeholder {0}: browser.label
 #. placeholder {0}: nameOf(d) || "device"
+#: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "Rename {0}"
 msgstr "Rename {0}"
@@ -3534,8 +3552,8 @@ msgid "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key
 msgstr "Scan the QR on a site's 2FA page, or paste an otpauth:// URI or setup key."
 
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
-msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
-msgstr "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching number on both devices before anything is sent."
+msgid "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
+msgstr "Scan this on your other device, or copy the code below. Keep it private: anyone who sees it while this window is open could try to join. You'll confirm a matching symbols on both devices before anything is sent."
 
 #: packages/core/src/app/screens/VaultSetup/components/JoinCard.tsx
 msgid "Scanning…"
@@ -4124,9 +4142,17 @@ msgstr "The only new things in this file are attachments, which this browser can
 msgid "The other version"
 msgstr "The other version"
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The passphrase does not open this private key, so it was not added."
+msgstr "The passphrase does not open this private key, so it was not added."
+
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "The signaling relay that introduces devices. Defaults to the hosted relay; point it at your own or any public Nostr relay."
 msgstr "The signaling relay that introduces devices. Defaults to the hosted relay; point it at your own or any public Nostr relay."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The SSH agent refused this key."
+msgstr "The SSH agent refused this key."
 
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "The vault locked, so the attachments read from that file were cleared. Open it again to import them."
@@ -4333,6 +4359,10 @@ msgstr "This login has a passkey"
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "This password appeared in a known data breach."
 msgstr "This password appeared in a known data breach."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "This private key is not in OpenSSH format, so it was not added."
+msgstr "This private key is not in OpenSSH format, so it was not added."
 
 #: packages/core/src/app/screens/Settings/components/DeleteVaultSection.tsx
 msgid "This removes the vault from this device. Synced copies on your other devices aren't affected, and this can't be undone here. Confirm to continue."

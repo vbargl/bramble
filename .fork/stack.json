@@ -1,0 +1,24 @@
+{
+  "upstream": "https://github.com/bramble-sh/bramble.git",
+  "fork": "https://github.com/vbargl/bramble.git",
+  "integrationBranch": "main",
+  "sourceHeads": {
+    "fix/audit-f1-desktop-fill": "546685ea214e65c9661e50e4250f8caca44f5259",
+    "fix/audit-f3-recovery-rotation": "b00493451ad75ef962dfe634f134aebe6e5cbfd1",
+    "fix/audit-f4-enrollment-pin-check": "91f003b1b6cb9c1f284e555ea0230a64a4aa7782",
+    "fix/audit-f5-vek-residency": "5ddbe733696dff23b23e8d3ce7d7a32815ed8e87",
+    "fix/audit-f6-website-headers": "de63728f6314b2cd95551a8eb00c86373566ea87",
+    "fix/audit-f7-dependencies": "56f307278c8fccc93e47297a54bd5bbc0165c08c",
+    "fix/audit-f8-copy-accuracy": "96876870f8526c5452e38aedb3d525b53d5ee4ac",
+    "fix/desktop-page-reporting": "f760fa4f3e9b7f8783ab335dc461d2c4af8585dd",
+    "fix/linux-quick-access-backdrop": "90861078b6a9c909bac86b22c35649a3ffaf2701",
+    "fix/sync-startup-retry": "9a3130c78321b5bc615173ca8d314bacd597b819",
+    "fix/native-refusal-test": "8ff73eb8c321b5b89b39f3daeb8afa54c9734b8f",
+    "feat/rename-paired-browsers": "e88e173b7cc7c2add09b5a0a64eeed5f55fbd700",
+    "feat/vault-sealed-pairing-key": "312836f7ac8e732259acb162bcd020eb1871aad3",
+    "feat/ssh-agent-add-keys": "46b2271a27718149df14f109a1f34c3cec0e902e"
+  },
+  "excluded": {
+    "fix/audit-f2-roster-admission": "ad5671a884398980709237f88c064c407a246079"
+  }
+}

@@ -26,6 +26,7 @@ import { Modal } from "../../../components/ui/modal";
 import { PasswordField } from "../../../components/ui/password-field";
 import { TextField } from "../../../components/ui/text-field";
 import { useDeviceNames } from "../../../hooks/useDeviceNames";
+import { DeviceNameField } from "./DeviceNameField";
 import { Row, Section } from "./primitives";
 import { deviceNamer, fullStamp, shortKey, shortStamp } from "./sync-log";
 
@@ -63,41 +64,6 @@ const relativeTime = (ms: number): string => {
 	if (abs < 86_400) return rtf.format(Math.round(sec / 3600), "hour");
 	return rtf.format(Math.round(sec / 86_400), "day");
 };
-
-/** A device's name, edited in place. Enter or leaving the field saves; Escape cancels (null). */
-function DeviceNameField({
-	initial,
-	onDone,
-}: {
-	initial: string;
-	onDone: (name: string | null) => void;
-}) {
-	const { t } = useLingui();
-	const [value, setValue] = useState(initial);
-	// Closing the field can blur it, and that blur must not save what Escape threw away.
-	const done = useRef(false);
-	const finish = (name: string | null) => {
-		if (done.current) return;
-		done.current = true;
-		onDone(name);
-	};
-	return (
-		<TextField
-			size="sm"
-			label={t`Device name`}
-			value={value}
-			maxLength={64}
-			autoFocus
-			autoComplete="off"
-			onChange={(e) => setValue(e.target.value)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter") finish(value);
-				if (e.key === "Escape") finish(null);
-			}}
-			onBlur={() => finish(value)}
-		/>
-	);
-}
 
 /**
  * Device sync panel. State-aware: before you're in a group it offers "add a device"
@@ -631,7 +597,7 @@ export function SyncConnectSection() {
 					<Row
 						icon={<Wifi className="w-4 h-4 text-primary" />}
 						title={t`Add a device`}
-						subtitle={t`Generate a one-time pairing code and listen for a device to join. No vault secrets in the code.`}
+						subtitle={t`Generate a one-time pairing code for your other device. Keep it private while it is on screen.`}
 					>
 						<Button variant="secondary" size="sm" onClick={beginAddDevice}>
 							<Trans>Add a device</Trans>
@@ -810,7 +776,7 @@ export function SyncConnectSection() {
 									<Trans>
 										Scan this on your other device, or copy the code below. Keep it private: anyone
 										who sees it while this window is open could try to join. You'll confirm a
-										matching number on both devices before anything is sent.
+										matching symbols on both devices before anything is sent.
 									</Trans>
 								</p>
 								{/* A failed attempt that did NOT spend the code, so it sits alongside rather

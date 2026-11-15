@@ -33,6 +33,7 @@ import {
 	type DesktopFill,
 	linkIsHeld,
 	onDesktopFillRequest,
+	onDesktopLinkConnected,
 	reportActiveTab,
 } from "./desktop-link";
 import { armShortcutGrant, shortcutGrantLive, spendShortcutGrant } from "./fill-shortcut";
@@ -1038,34 +1039,60 @@ on("AUTOFILL_SET_INDEX", autofillSetIndex);
  * conservative direction: better a fill that does not happen than one aimed at a frame nobody
  * asked about.
  */
+// A capability names one content-script lifetime. Secrets only return on that document's
+// original runtime response channel, never on tabs.sendMessage to a replaceable frame.
+let desktopTarget: { target: string; tabId: number; origin: string } | null = null;
+let desktopPending: { target: string; fill: DesktopFill; expires: number } | null = null;
+
 async function fillFromDesktop(fill: DesktopFill): Promise<void> {
-	const [tab] = await api.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
-	if (tab?.id === undefined) {
-		console.warn("[bramble:link] fill: no active tab to fill");
-		return;
-	}
-	// The app sends the authenticator KEY, the same seed its own index holds, and the code is
-	// computed here rather than there: this is where the one TOTP implementation lives. Passing
-	// the key through would type the seed itself into the page's one-time-code field.
-	const totp = liveTotpCode(fill.totpKey);
-	if (fill.totpKey && !totp) console.warn("[bramble:link] fill: unusable authenticator key");
-	const reply = await api.tabs
-		.sendMessage(
-			tab.id,
-			{
-				type: "DESKTOP_FILL",
-				payload: { username: fill.username, password: fill.password, totp },
-			},
-			{ frameId: 0 },
-		)
-		.catch((e) => {
-			// No content script on this page (a settings tab, the store, a PDF), or one orphaned by
-			// an extension reload, which keeps running but can no longer answer.
-			console.warn("[bramble:link] fill: the page did not answer:", e);
-			return undefined;
-		});
-	if (reply && reply.ok !== true) console.warn("[bramble:link] fill declined:", reply);
+	const bound = desktopTarget;
+	if (!bound || !fill.target || fill.target !== bound.target) return;
+	desktopPending = { target: bound.target, fill, expires: Date.now() + 10_000 };
+	setTimeout(() => {
+		if (desktopPending && desktopPending.expires <= Date.now()) desktopPending = null;
+	}, 10_000);
+	// Non-secret notification only: a replacement document knows its OWN capability, not bound.target.
+	await api.tabs
+		.sendMessage(bound.tabId, { type: "DESKTOP_FILL_READY" }, { frameId: 0 })
+		.catch(() => {});
 }
+
+on("DESKTOP_FILL_CLAIM", async (message, sender) => {
+	const bound = desktopTarget;
+	const pending = desktopPending;
+	const page = pageSenderUrl(sender);
+	if (
+		!bound ||
+		!pending ||
+		!page ||
+		sender.frameId !== 0 ||
+		sender.tab?.id !== bound.tabId ||
+		page.origin !== bound.origin ||
+		message.target !== bound.target ||
+		pending.target !== bound.target ||
+		pending.expires < Date.now()
+	)
+		return { ok: false, error: "unavailable" };
+	const [tab] = await api.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
+	if (
+		desktopTarget !== bound ||
+		desktopPending !== pending ||
+		pending.expires < Date.now() ||
+		tab?.id !== bound.tabId ||
+		!tab.url ||
+		new URL(tab.url).origin !== bound.origin
+	)
+		return { ok: false, error: "unavailable" };
+	desktopPending = null; // one use, before returning a secret
+	return {
+		ok: true,
+		data: {
+			username: pending.fill.username,
+			password: pending.fill.password,
+			totp: liveTotpCode(pending.fill.totpKey),
+		},
+	};
+});
 
 onDesktopFillRequest((fill) => {
 	// Caught rather than left to become an unhandled rejection, which is how the first version of
@@ -1075,26 +1102,62 @@ onDesktopFillRequest((fill) => {
 
 /** Keep the desktop app told which page this browser is on, so its panel can name the target. */
 function watchActiveTab(): void {
+	let generation = 0;
 	const report = async () => {
-		// Checked first so a browser with no desktop app does not query tabs on every switch just to
-		// find there is nowhere to send the answer.
+		const current = ++generation;
+		desktopTarget = null;
+		desktopPending = null;
 		if (!linkIsHeld()) return;
 		const [tab] = await api.tabs.query({ active: true, lastFocusedWindow: true }).catch(() => []);
 		let hostname = "";
-		try {
-			hostname = tab?.url ? new URL(tab.url).hostname : "";
-		} catch {
-			// A tab URL we cannot parse (about:, chrome://) is not a fill target.
+		let target = "";
+		if (tab?.id !== undefined && tab.url) {
+			try {
+				const page = new URL(tab.url);
+				const reply = await api.tabs.sendMessage(
+					tab.id,
+					{ type: "DESKTOP_FILL_TARGET" },
+					{ frameId: 0 },
+				);
+				if (current !== generation) return;
+				if (
+					(page.protocol === "https:" || page.protocol === "http:") &&
+					typeof reply?.target === "string" &&
+					reply.target.length === 64 &&
+					reply.origin === page.origin
+				) {
+					hostname = page.hostname;
+					target = reply.target;
+					desktopTarget = { target, tabId: tab.id, origin: page.origin };
+				}
+			} catch {
+				/* No current content script: publish an empty target. */
+			}
 		}
-		await reportActiveTab(hostname);
+		if (current === generation) await reportActiveTab(hostname, target);
 	};
-	// Optional, not assumed. Naming the fill target is a convenience, so a host that does not
-	// expose tab events should lose the label rather than fail to load the background at all.
-	api.tabs.onActivated?.addListener(() => void report());
-	api.tabs.onUpdated?.addListener((_id, change) => {
-		if (change.url) void report();
+	const refresh = () => void report().catch(() => {});
+	onDesktopLinkConnected(refresh);
+	api.windows.onFocusChanged?.addListener((windowId) => {
+		if (windowId >= 0) refresh();
 	});
-	void report();
+	api.tabs.onActivated?.addListener(refresh);
+	api.tabs.onUpdated?.addListener((_id, change) => {
+		if (change.url || change.status === "complete") refresh();
+	});
+	on(
+		"DESKTOP_FILL_LINK_READY",
+		extensionOnly(async () => {
+			refresh();
+			return { ok: true };
+		}),
+	);
+	on("DESKTOP_FILL_PAGE", async (_message, sender) => {
+		if (sender.frameId !== 0 || !pageSenderUrl(sender)) return { ok: false };
+		refresh();
+		return { ok: true };
+	});
+	refresh();
 }
 
 watchActiveTab();

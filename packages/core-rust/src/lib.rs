@@ -692,6 +692,31 @@ pub fn generate_vek() -> Result<String, CryptoError> {
     Ok(encoded)
 }
 
+/// Native lifecycle operations: keep the fresh key in Rust without allocating an exported string.
+#[cfg(any(feature = "native", feature = "ffi"))]
+fn replace_vek_in_place(require_current: bool) -> Result<(), CryptoError> {
+    let mut fresh = Zeroizing::new([0u8; KEY_LEN]);
+    random_bytes(fresh.as_mut_slice())?;
+    let mut guard = vek_slot().lock().unwrap();
+    if require_current && guard.is_none() {
+        return Err(err("vault is locked"));
+    }
+    *guard = Some(fresh);
+    Ok(())
+}
+
+#[cfg(any(feature = "native", feature = "ffi"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn generate_vek_in_place() -> Result<(), CryptoError> {
+    replace_vek_in_place(false)
+}
+
+#[cfg(any(feature = "native", feature = "ffi"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn rotate_vek_in_place() -> Result<(), CryptoError> {
+    replace_vek_in_place(true)
+}
+
 /// Session resume: load a cached VEK (from session storage / the biometric cache)
 /// without re-deriving from a credential.
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -1829,5 +1854,27 @@ mod portable_vault_tests {
         let opened = open_portable_vault_core("pw", &file, MAGIC).expect("open");
         assert_eq!(opened.as_deref(), Some(ENTRIES));
         assert!(is_locked());
+    }
+}
+
+#[cfg(all(test, any(feature = "native", feature = "ffi")))]
+mod native_lifecycle_tests {
+    use super::*;
+    #[test]
+    fn native_lifecycle_returns_no_key_and_preserves_rotation_and_lock_contract() {
+        let _guard = crate::tests::VEK_SLOT_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        lock();
+        assert!(rotate_vek_in_place().is_err());
+        let created: () = generate_vek_in_place().unwrap();
+        assert_eq!(created, ());
+        let old = export_vek().unwrap();
+        let sealed = encrypt_with_vek_core("synthetic secret").unwrap();
+        let rotated: () = rotate_vek_in_place().unwrap();
+        assert_eq!(rotated, ());
+        assert_ne!(old, export_vek().unwrap());
+        assert!(decrypt_with_vek(sealed.iv, sealed.ciphertext).is_err());
+        lock();
     }
 }

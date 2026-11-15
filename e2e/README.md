@@ -359,3 +359,130 @@ refused to click either. Nothing was wrong with sync itself, and nobody could se
 job ran it.
 
 If you add a suite that CI does not run, it is not covered - it is only untested more slowly.
+
+## F1 real native desktop-fill security gate
+
+```sh
+pnpm --filter @vault/platform-extension build:chromium
+cargo build --manifest-path clients/desktop/src-tauri/Cargo.toml
+pnpm exec playwright test --config playwright.desktop-link.config.ts e2e/desktop-link/fill-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Requires macOS and the existing isolated scratch-keychain desktop fixture. The test links the
+actual desktop and extension over native messaging/Noise, creates a synthetic desktop login,
+and holds only the final tabs.sendMessage delivery. A no-navigation control must fill correctly.
+Negative cases release delivery after same-origin navigation, cross-origin navigation, scheme
+or port change, active-tab switch, expiry, reuse and actual BFCache restoration. Destination
+fields must stay empty and the synthetic secret must not appear during the settle window.
+The BFCache case asserts `pageshow.persisted`; a reload is not accepted as coverage. The fixture
+allows BFCache rather than inheriting Playwright's default disabling argument.
+
+On Linux this file intentionally reports nine SKIPPED cases. Neither test discovery nor a
+successful TypeScript check is native security acceptance. The separate existing Chromium/Firefox
+transport-contract suite remains useful but does not replace this real native-link run.
+
+## F3 recovery security gate
+
+Build the WASM and Chromium extension, then run:
+
+```sh
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/recovery-security.spec.ts
+```
+
+`CHROMIUM_BINARY` may select a system Chromium for both peers. The suite creates disposable
+vaults and pairs real extension/mobile-web clients through the local relay. It first proves
+normal sync and that a stolen synthetic VEK opens the pre-rotation file, then drives rotation
+through Settings and verifies old-key rejection, new-key acceptance and persistent group
+removal after reload. A separate WASM instance performs the attacker decryptions.
+
+The attachment case is an explicitly expected failure, activated only after the real UI has
+refused rotation for its documented attachment limitation. It tracks an OPEN requirement;
+Playwright's aggregate successful exit does not mean attachment recovery is fixed. Native
+mobile/desktop and biometric-device acceptance are outside this browser suite.
+
+## F4 enrollment pin security gate
+
+```sh
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/enrollment-pin-security.spec.ts
+```
+
+Build WASM and the Chromium extension from this branch first. `CHROMIUM_BINARY` optionally
+selects a system Chromium for both clients. Actual app pairing runs over the local relay and
+WebRTC. The observer records outgoing Noise frame lengths and production status events without
+replacing crypto or transport. Correct pin: messages 1 and 3 are sent and pairing succeeds.
+Different pin: message 2 is processed, an explicit pin-mismatch status arrives, and only message
+1 has left the joiner; message 3 containing its static identity never leaves. Missing pin:
+validation rejects the code and sends no handshake frame. The original late-pin enrollment
+host emits message 3 and fails the mismatch case. Native FFI/app-device acceptance remains
+separate from this WASM browser run.
+
+## F5 native key-return security gate
+
+```sh
+cargo build --manifest-path clients/desktop/src-tauri/Cargo.toml
+pnpm exec playwright test --config playwright.desktop-link.config.ts e2e/desktop-link/key-residency-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Uses the real desktop window and Tauri command bridge in the existing isolated macOS fixture.
+The create/rotate return values must be null while real AES-GCM encryption/decryption still
+works; old ciphertext must fail under the replacement key. This catches an IPC return leak,
+not merely a TypeScript adapter discarding an already-returned secret.
+
+The explicit-export test records only availability and byte count, never the key. If it observes
+a reusable 32-byte VEK entering the webview, that exact assertion is an expected failure tracking
+the OPEN remainder of F5. Setup and IPC errors are not hidden behind expected-failure status.
+On Linux both native tests are SKIPPED, not passed. Biometric/enrollment residency and actual
+Android/iOS bindings remain outside this desktop suite. Never infer complete native-only key
+residency from the lifecycle-return test.
+
+## F6 website policy security gate
+
+```sh
+pnpm --filter @vault/website build
+pnpm exec playwright test --config playwright.website-security.config.ts
+```
+
+Uses the installed Wrangler Pages emulator and the real generated `dist/_headers`, rather than
+a test server reimplementing the policy. The HTTP checks preserve Matrix CORS and updater cache
+rules. Real browser checks prove the legitimate hashed theme script executes, an injected inline
+script is blocked, and a different origin cannot frame the page. `CHROMIUM_BINARY` can select a
+system Chromium. All tests use loopback endpoints. Local HSTS header validation does not prove
+production TLS configuration, HSTS preload state, or that these headers have been deployed.
+
+## F7 mailbox HTTP security gate
+
+```sh
+pnpm --filter bramble-mailbox-server exec vitest run src/node/security.e2e.test.ts
+```
+
+Although run by Vitest, these are HTTP E2E tests: the production Node server listens on an
+actual TCP port with disposable SQLite/database migrations and disk storage. No `app.request`
+or authentication mocks. A genuine Ed25519-signed mailbox create/read is the positive control;
+unsigned encoded-path requests must hit the authentication/token gate on public and private
+servers. Test both a real member route and the entire protected namespace, including newline
+and Unicode line separators in otherwise unknown paths. Token-only requests still require a
+signature. The old Hono version returns unauthenticated 404 for the protected unknown encoded
+paths and fails; this is middleware-bypass evidence, not proof of mailbox-content disclosure.
+Unused Hono helper advisories and remaining development-tool dependency advisories are not
+cleared by this application test.
+
+## F8 security-copy browser checks
+
+```sh
+pnpm --filter @vault/website build
+pnpm exec playwright test --config playwright.website-copy.config.ts
+pnpm exec playwright test --config playwright.sync.config.ts e2e/sync/pairing-copy-security.spec.ts
+pnpm --filter @vault/core exec tsc -p ../../e2e/tsconfig.security.json
+```
+
+Build the extension and WASM before the pairing test. Website tests render the built site,
+open the real FAQ accordions, and assert relay metadata, optional network services, preserved
+conflicts and old-client limitations. The app test generates a real local-relay invite and
+checks the private-code/symbol-comparison warnings before any vault transfer. Astro preview
+uses `--ignore-lock` to stay in the Playwright-owned foreground process even under agent
+auto-background detection. `CHROMIUM_BINARY` can select a system Chromium.
+
+These are UI/documentation regression checks, not evidence that the cryptographic findings
+are fixed. README prose and translated native/device UI still require their own review.

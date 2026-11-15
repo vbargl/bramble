@@ -706,6 +706,7 @@ export async function confirmDesktopLink(id: string, matches: boolean): Promise<
 			else if (wasHeld) void ensureHeld().catch(() => {});
 		});
 		held = link;
+		onLinkConnected?.();
 		linkWanted = true;
 		startKeepalive();
 		return state;
@@ -932,6 +933,7 @@ let linkWanted = false;
 
 /** One credential the app is asking this browser to fill. Not stored anywhere. */
 export interface DesktopFill {
+	target?: string;
 	username: string;
 	password: string;
 	/**
@@ -947,6 +949,7 @@ let onFillRequest: ((fill: DesktopFill) => void) | null = null;
 
 /** A fill as the app frames it. Its `totp` is the authenticator key. */
 interface WireFill {
+	target?: string;
 	username?: string;
 	password?: string;
 	totp?: string | null;
@@ -957,12 +960,13 @@ export function onDesktopFillRequest(handler: (fill: DesktopFill) => void): void
 	onFillRequest = handler;
 }
 
-/**
- * Tell the app which page this browser is on, so its panel can say where a fill would land.
- *
- * Only while a link is already held: this must not be the thing that spawns a native host, or
- * every tab switch would start a process on a machine with no desktop app running.
- */
+/** Refresh page routing whenever a new authenticated transport becomes usable. */
+let onLinkConnected: (() => void) | null = null;
+export function onDesktopLinkConnected(handler: () => void): void {
+	onLinkConnected = handler;
+	if (linkIsHeld()) handler();
+}
+
 /** Whether a link is live, so callers can skip work that only matters when one is. */
 export function linkIsHeld(): boolean {
 	return held !== null && !held.session.dead;
@@ -973,11 +977,17 @@ export function heldVault(): string | null | undefined {
 	return held && !held.session.dead ? held.vaultId : undefined;
 }
 
-export async function reportActiveTab(hostname: string): Promise<void> {
+/**
+ * Tell the app which page this browser is on, so its panel can say where a fill would land.
+ *
+ * Only while a link is already held: this must not be the thing that spawns a native host, or
+ * every tab switch would start a process on a machine with no desktop app running.
+ */
+export async function reportActiveTab(hostname: string, target = ""): Promise<void> {
 	const link = held;
 	if (!link || link.session.dead) return;
 	try {
-		await sealAndSend(link, { op: "activeTab", hostname });
+		await sealAndSend(link, { op: "activeTab", hostname, target });
 	} catch {
 		// A dead pipe is not worth reporting: the next keepalive rebuilds it.
 	}
@@ -1288,6 +1298,7 @@ async function connectHeld(via?: string): Promise<HeldLink | null> {
 	}
 	link.files = Array.isArray(caps?.caps) && caps.caps.includes(CAP_FILES);
 	held = link;
+	onLinkConnected?.();
 	if (source.legacy) void adoptLegacyLink(link);
 	return link;
 }
@@ -1338,6 +1349,7 @@ async function routeInbound(link: HeldLink, sealed: string): Promise<void> {
 	}
 	if (parsed.fill && typeof parsed.fill.password === "string") {
 		onFillRequest?.({
+			target: typeof parsed.fill.target === "string" ? parsed.fill.target : undefined,
 			username: parsed.fill.username ?? "",
 			password: parsed.fill.password,
 			// `totp` on the wire, and a key rather than a code; see DesktopFill.

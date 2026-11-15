@@ -153,3 +153,11 @@ describe("desktop mailbox crypto", () => {
 		]);
 	});
 });
+
+it("native creation and rotation return no vault key to the webview", async () => {
+	h.replies.crypto_generate_vek = "STALE_SHELL_KEY";
+	h.replies.crypto_rotate_vek = "STALE_SHELL_KEY";
+	expect(await desktopCrypto.generateVek()).toBeUndefined();
+	expect(await desktopCrypto.rotateVek()).toBeUndefined();
+	expect(h.calls.map((c) => c.cmd)).toEqual(["crypto_generate_vek", "crypto_rotate_vek"]);
+});

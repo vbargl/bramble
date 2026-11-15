@@ -520,6 +520,19 @@ describe("the held sync link", () => {
 		expect(h.connects).toBe(1);
 	});
 
+	it("notifies the page reporter after publishing a connected link", async () => {
+		const mod = await load();
+		const report = vi.fn(() => expect(mod.linkIsHeld()).toBe(true));
+		mod.onDesktopLinkConnected(report);
+		const opening = mod.openDesktopLink();
+		await vi.waitFor(() => expect(h.onMessage.length).toBeGreaterThan(0));
+		completeHandshake();
+		expect(await opening).toBe(true);
+		expect(report).toHaveBeenCalledTimes(1);
+		await mod.openDesktopLink();
+		expect(report).toHaveBeenCalledTimes(1);
+	});
+
 	it("asks the app to offer sync again on a link held before sync, and keeps the link", async () => {
 		// The app offers a browser for sync when it connects, and refuses it while nothing here
 		// answers: a link opened to pair, before this browser had a vault. Starting afresh needs a
@@ -2163,4 +2176,28 @@ describe("a borrowed pipe serves link requests, not just pairing", () => {
 		h.permitted = false;
 		expect(await mod.transportNeeded()).toBe(true);
 	});
+});
+
+it("carries the document capability over the native link in both directions", async () => {
+	const mod = await load();
+	const onFill = vi.fn();
+	const onReady = vi.fn();
+	mod.onDesktopLinkConnected(onReady);
+	mod.onDesktopFillRequest(onFill);
+	await open(mod, []);
+	const target = "a".repeat(64);
+	await mod.reportActiveTab("example.com", target);
+	const sent = h.posted.at(-1) as { sealed: string };
+	expect(JSON.parse(h.sealed.get(sent.sealed) ?? "{}")).toEqual({
+		op: "activeTab",
+		hostname: "example.com",
+		target,
+	});
+	deliver({
+		sealed: `sealed:${JSON.stringify({ fill: { username: "u", password: "s", target } })}`,
+	});
+	await vi.waitFor(() =>
+		expect(onFill).toHaveBeenCalledWith({ username: "u", password: "s", target, totpKey: null }),
+	);
+	expect(onReady).toHaveBeenCalledTimes(1);
 });

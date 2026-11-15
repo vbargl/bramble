@@ -55,16 +55,19 @@ export const desktopCrypto: CryptoAdapter = {
 	// while locked. buildCryptoAdapter fires the same four for the platforms built on it;
 	// this adapter is hand-written, so the four are marked individually. See ./vault-session.
 	generateVek: async () => {
-		const vek = await invoke<string>("crypto_generate_vek");
+		await invoke<undefined>("crypto_generate_vek");
 		markUnlocked();
-		return vek;
+		return undefined;
 	},
 	unlockWithVek: async (vekB64) => {
 		await invoke<void>("crypto_unlock_with_vek", { vekB64 });
 		markUnlocked();
 	},
 	exportVek: () => invoke<string>("crypto_export_vek"),
-	rotateVek: () => invoke<string>("crypto_rotate_vek"),
+	rotateVek: async () => {
+		await invoke<void>("crypto_rotate_vek");
+		return undefined;
+	},
 	lock: async () => {
 		await invoke<void>("crypto_lock");
 		markLocked();

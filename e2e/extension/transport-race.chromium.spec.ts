@@ -24,6 +24,7 @@ test.beforeAll(async () => {
 	profile = await mkdtemp(path.join(tmpdir(), "bramble-transport-chromium-"));
 	try {
 		browser = await chromium.launchPersistentContext(profile, {
+			executablePath: process.env.CHROMIUM_BINARY,
 			args: [
 				`--disable-extensions-except=${FIXTURE_DIR}`,
 				`--load-extension=${FIXTURE_DIR}`,

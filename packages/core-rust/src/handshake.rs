@@ -32,6 +32,12 @@ const MAX_MSG: usize = 65535;
 
 enum Session {
     Handshake(Box<HandshakeState>),
+    HandshakeWithPin {
+        hs: Box<HandshakeState>,
+        // Expected remote static key for pinned enrollment initiators. Checked after reading message 2,
+        // before writing message 3.
+        expected_remote: Vec<u8>,
+    },
     Transport {
         tx: Box<TransportState>,
         // The peer's static public key, captured at completion. For KK this is
@@ -111,8 +117,12 @@ fn start_responder(local_priv: &[u8], remote_pub: &[u8]) -> Result<u32, String> 
 fn read(session_id: u32, msg: &[u8]) -> Result<(Option<Vec<u8>>, bool), String> {
     let mut reg = registry().lock().unwrap();
     let session = reg.sessions.remove(&session_id).ok_or("unknown session")?;
-    let mut hs = match session {
-        Session::Handshake(hs) => hs,
+    let (mut hs, expected_remote) = match session {
+        Session::Handshake(hs) => (hs, None),
+        Session::HandshakeWithPin {
+            hs,
+            expected_remote,
+        } => (hs, Some(expected_remote)),
         Session::Transport {
             tx,
             remote_static,
@@ -134,6 +144,18 @@ fn read(session_id: u32, msg: &[u8]) -> Result<(Option<Vec<u8>>, bool), String> 
     // expect: leave the session removed (dropped) so it cannot be retried.
     hs.read_message(msg, &mut out)
         .map_err(|e| format!("handshake read: {e}"))?;
+
+    // For pinned enrollment initiators: after message 2 is read but before message 3 is written,
+    // verify the inviter's static key matches what we expect.
+    if let Some(expected) = &expected_remote {
+        let remote_static = hs
+            .get_remote_static()
+            .map(|s| s.to_vec())
+            .unwrap_or_default();
+        if remote_static != *expected {
+            return Err("enrollment inviter key mismatch".into());
+        }
+    }
 
     // In a strict 2-party handshake, if reading did not finish it, the next
     // message is ours to send. (is_my_turn() is unreliable after the final read.)
@@ -183,7 +205,9 @@ fn encrypt(session_id: u32, plaintext: &[u8]) -> Result<Vec<u8>, String> {
             buf.truncate(n);
             Ok(buf)
         }
-        Session::Handshake(_) => Err("handshake not complete".into()),
+        Session::Handshake(_) | Session::HandshakeWithPin { .. } => {
+            Err("handshake not complete".into())
+        }
     }
 }
 
@@ -198,7 +222,9 @@ fn decrypt(session_id: u32, ciphertext: &[u8]) -> Result<Vec<u8>, String> {
             buf.truncate(n);
             Ok(buf)
         }
-        Session::Handshake(_) => Err("handshake not complete".into()),
+        Session::Handshake(_) | Session::HandshakeWithPin { .. } => {
+            Err("handshake not complete".into())
+        }
     }
 }
 
@@ -247,6 +273,32 @@ fn enroll_start_responder(local_priv: &[u8], psk: &[u8]) -> Result<u32, String> 
     Ok(insert_session(&mut reg, Session::Handshake(Box::new(hs))))
 }
 
+fn enroll_start_initiator_pinned(
+    local_priv: &[u8],
+    psk: &[u8],
+    expected_remote: &[u8],
+) -> Result<(u32, Vec<u8>), String> {
+    let mut hs = Builder::new(enroll_params()?)
+        .local_private_key(local_priv)
+        .psk(3, psk)
+        .build_initiator()
+        .map_err(|e| format!("build enroll initiator pinned: {e}"))?;
+    let mut buf = vec![0u8; 1024];
+    let n = hs
+        .write_message(&[], &mut buf)
+        .map_err(|e| format!("write msg1: {e}"))?;
+    let msg = buf[..n].to_vec();
+    let mut reg = registry().lock().unwrap();
+    let id = insert_session(
+        &mut reg,
+        Session::HandshakeWithPin {
+            hs: Box::new(hs),
+            expected_remote: expected_remote.to_vec(),
+        },
+    );
+    Ok((id, msg))
+}
+
 // ---- browser link handshake (Noise XX, no PSK) ----
 //
 // Links the extension to the desktop app with no code: both screens show emoji derived from the
@@ -286,7 +338,9 @@ fn handshake_hash_bytes(session_id: u32) -> Result<Vec<u8>, String> {
     let reg = registry().lock().unwrap();
     match reg.sessions.get(&session_id).ok_or("unknown session")? {
         Session::Transport { handshake_hash, .. } => Ok(handshake_hash.clone()),
-        Session::Handshake(_) => Err("handshake not complete".into()),
+        Session::Handshake(_) | Session::HandshakeWithPin { .. } => {
+            Err("handshake not complete".into())
+        }
     }
 }
 
@@ -302,7 +356,9 @@ fn remote_static(session_id: u32) -> Result<Vec<u8>, String> {
                 Ok(remote_static.clone())
             }
         }
-        Session::Handshake(_) => Err("handshake not complete".into()),
+        Session::Handshake(_) | Session::HandshakeWithPin { .. } => {
+            Err("handshake not complete".into())
+        }
     }
 }
 
@@ -366,6 +422,23 @@ fn start_initiator_core(
 fn enroll_initiator_core(local_priv_b64: &str, psk_b64: &str) -> Result<StartResult, CryptoError> {
     let (session_id, msg) =
         enroll_start_initiator(&b64dec(local_priv_b64)?, &b64dec(psk_b64)?).map_err(ce)?;
+    Ok(StartResult {
+        session_id,
+        message: B64.encode(msg),
+    })
+}
+
+fn enroll_initiator_pinned_core(
+    local_priv_b64: &str,
+    psk_b64: &str,
+    expected_remote_b64: &str,
+) -> Result<StartResult, CryptoError> {
+    let (session_id, msg) = enroll_start_initiator_pinned(
+        &b64dec(local_priv_b64)?,
+        &b64dec(psk_b64)?,
+        &b64dec(expected_remote_b64)?,
+    )
+    .map_err(ce)?;
     Ok(StartResult {
         session_id,
         message: B64.encode(msg),
@@ -527,6 +600,34 @@ pub fn handshake_enroll_initiator(
     enroll_initiator_core(&local_priv_b64, &psk_b64)
 }
 
+/// Begin pinned enrollment as the joiner (initiator). Supply the expected inviter's
+/// static key; it will be verified immediately after message 2 is read, before message 3
+/// is written. Returns the session id and the first message.
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn handshake_enroll_initiator_pinned(
+    local_priv_b64: String,
+    psk_b64: String,
+    expected_remote_b64: String,
+) -> Result<JsValue, CryptoError> {
+    serde_wasm_bindgen::to_value(&enroll_initiator_pinned_core(
+        &local_priv_b64,
+        &psk_b64,
+        &expected_remote_b64,
+    )?)
+    .map_err(|e| ce(format!("serialize: {e}")))
+}
+
+#[cfg(any(feature = "ffi", feature = "native"))]
+#[cfg_attr(feature = "ffi", uniffi::export)]
+pub fn handshake_enroll_initiator_pinned(
+    local_priv_b64: String,
+    psk_b64: String,
+    expected_remote_b64: String,
+) -> Result<StartResult, CryptoError> {
+    enroll_initiator_pinned_core(&local_priv_b64, &psk_b64, &expected_remote_b64)
+}
+
 /// Feed an incoming handshake message. Returns `{ message?, done }`.
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
@@ -654,7 +755,10 @@ mod tests {
         assert!(decrypt(999_999, b"x").is_err());
     }
 
-    use super::{enroll_start_initiator, enroll_start_responder, remote_static};
+    use super::{
+        enroll_start_initiator, enroll_start_initiator_pinned, enroll_start_responder,
+        remote_static,
+    };
 
     #[test]
     fn enrollment_xx_psk_exchanges_statics_and_transports() {
@@ -696,5 +800,57 @@ mod tests {
         let (m2, _) = read(inviter, &m1).unwrap();
         let (m3, _) = read(joiner, &m2.unwrap()).unwrap();
         assert!(read(inviter, &m3.unwrap()).is_err(), "wrong PSK must fail");
+    }
+
+    #[test]
+    fn enrollment_pinned_with_correct_key_succeeds() {
+        let psk = [42u8; 32];
+        let (inviter_priv, inviter_pub) = gen_keypair().unwrap();
+        let (joiner_priv, joiner_pub) = gen_keypair().unwrap();
+
+        // Joiner initiates with the inviter's correct key pinned.
+        let (joiner, m1) = enroll_start_initiator_pinned(&joiner_priv, &psk, &inviter_pub).unwrap();
+        let inviter = enroll_start_responder(&inviter_priv, &psk).unwrap();
+
+        // XX is 3 messages: responder replies m2, initiator replies m3, responder done.
+        let (m2, d1) = read(inviter, &m1).unwrap();
+        assert!(!d1);
+        let (m3, d2) = read(joiner, &m2.unwrap()).unwrap();
+        assert!(d2);
+        let (none, d3) = read(inviter, &m3.unwrap()).unwrap();
+        assert!(none.is_none() && d3);
+
+        // Each side learned the other's static key.
+        assert_eq!(remote_static(inviter).unwrap(), joiner_pub);
+        assert_eq!(remote_static(joiner).unwrap(), inviter_pub);
+
+        close(joiner);
+        close(inviter);
+    }
+
+    #[test]
+    fn enrollment_pinned_with_wrong_key_fails_before_message3() {
+        let psk = [42u8; 32];
+        let (inviter_priv, _) = gen_keypair().unwrap();
+        let (joiner_priv, _) = gen_keypair().unwrap();
+        let (_wrong_priv, wrong_pub) = gen_keypair().unwrap();
+
+        // Joiner initiates with the wrong inviter key pinned.
+        let (joiner, m1) = enroll_start_initiator_pinned(&joiner_priv, &psk, &wrong_pub).unwrap();
+        // But the real inviter responds (with a different key).
+        let inviter = enroll_start_responder(&inviter_priv, &psk).unwrap();
+
+        // Inviter reads m1, replies with m2.
+        let (m2, d1) = read(inviter, &m1).unwrap();
+        assert!(!d1);
+
+        // When joiner reads m2, it should fail because the remote static doesn't match the pinned key.
+        // The pin check happens after read_message but before write_message, so the session is dropped
+        // and no m3 is generated.
+        let result = read(joiner, &m2.unwrap());
+        assert!(
+            result.is_err(),
+            "pinned enrollment must reject inviter with mismatched key"
+        );
     }
 }

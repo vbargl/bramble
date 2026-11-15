@@ -182,3 +182,12 @@ neither reads nor disturbs the session VEK, and works on a locked vault — so a
 refactor that quietly reached for `with_vek` would fail rather than silently turn
 every export into a copy of the vault key. Those two share the `VEK_SLOT_LOCK` used
 by the round-trip tests above, since they touch the global slot.
+
+## Recovery rotation safety on this branch
+
+Explicit key rotation refuses a configured sync group and awaits transport shutdown before
+replacing the key. Disconnect first and pair trusted devices into a new group afterward; this
+prevents treating a password-slot rewrap as cryptographic eviction. This does not remotely wipe
+stolen secrets or old backups. The operation remains feature-gated and rejects vaults with
+attachments, whose file keys still need an atomic rewrap implementation. This branch is partial
+recovery hardening; it does not claim full attachment-capable compromise recovery.
