@@ -26,6 +26,7 @@ import { Modal } from "../../../components/ui/modal";
 import { PasswordField } from "../../../components/ui/password-field";
 import { TextField } from "../../../components/ui/text-field";
 import { useDeviceNames } from "../../../hooks/useDeviceNames";
+import { DeviceNameField } from "./DeviceNameField";
 import { Row, Section } from "./primitives";
 import { deviceNamer, fullStamp, shortStamp } from "./sync-log";
 
@@ -64,41 +65,6 @@ const relativeTime = (ms: number): string => {
 	if (abs < 86_400) return rtf.format(Math.round(sec / 3600), "hour");
 	return rtf.format(Math.round(sec / 86_400), "day");
 };
-
-/** A device's name, edited in place. Enter or leaving the field saves; Escape cancels (null). */
-function DeviceNameField({
-	initial,
-	onDone,
-}: {
-	initial: string;
-	onDone: (name: string | null) => void;
-}) {
-	const { t } = useLingui();
-	const [value, setValue] = useState(initial);
-	// Closing the field can blur it, and that blur must not save what Escape threw away.
-	const done = useRef(false);
-	const finish = (name: string | null) => {
-		if (done.current) return;
-		done.current = true;
-		onDone(name);
-	};
-	return (
-		<TextField
-			size="sm"
-			label={t`Device name`}
-			value={value}
-			maxLength={64}
-			autoFocus
-			autoComplete="off"
-			onChange={(e) => setValue(e.target.value)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter") finish(value);
-				if (e.key === "Escape") finish(null);
-			}}
-			onBlur={() => finish(value)}
-		/>
-	);
-}
 
 /**
  * Device sync panel. State-aware: before you're in a group it offers "add a device"

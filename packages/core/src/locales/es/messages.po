@@ -1488,7 +1488,7 @@ msgstr "Aplicación de escritorio"
 msgid "Details"
 msgstr "Detalles"
 
-#: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
+#: packages/core/src/app/screens/Settings/components/DeviceNameField.tsx
 msgid "Device name"
 msgstr "Nombre del dispositivo"
 
@@ -3185,7 +3185,9 @@ msgstr "Etiqueta {removed} eliminada. {0} etiquetas."
 msgid "Removing…"
 msgstr "Quitando…"
 
+#. placeholder {0}: browser.label
 #. placeholder {0}: nameOf(d) || "device"
+#: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "Rename {0}"
 msgstr "Renombrar {0}"

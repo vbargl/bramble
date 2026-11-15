@@ -13,6 +13,7 @@ export const desktopPairing: PairingAdapter = {
 	syncing: syncingLinkKeys,
 	identity: () => invoke<string>("pairing_public_key"),
 	forget: (publicKey) => invoke<boolean>("pairing_forget", { publicKey }),
+	rename: (publicKey, label) => invoke<boolean>("pairing_rename", { publicKey, label }),
 
 	// The invite a paired browser can claim over the link. Held in the shell rather than here so
 	// the window closing cannot leave one claimable, and so the answer is gated where the

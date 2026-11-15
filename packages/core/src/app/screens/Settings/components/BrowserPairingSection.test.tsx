@@ -50,6 +50,13 @@ const pairing = {
 	syncing: async () => h.syncing,
 	identity: async () => "id",
 	forget: async () => true,
+	rename: async (publicKey: string, label: string) => {
+		h.calls.push(`rename:${publicKey}:${label}`);
+		h.listed = (h.listed as { publicKey: string }[]).map((b) =>
+			b.publicKey === publicKey ? { ...b, label } : b,
+		);
+		return true;
+	},
 	armSyncInvite: async () => {
 		h.calls.push("arming");
 		await h.armed;
@@ -151,6 +158,30 @@ describe("the list of linked browsers", () => {
 		expect(await screen.findByText("Firefox on Mac")).toBeTruthy();
 		expect(screen.queryByText("Chrome on Mac")).toBeNull();
 		expect(screen.getAllByRole("button", { name: /disconnect this browser/i })).toHaveLength(1);
+	});
+
+	it("renames a browser, which then shows the new name", async () => {
+		h.listed = [{ publicKey: "pk", label: "Firefox on Linux", pairedAt: 1 }];
+		mount();
+		fireEvent.click(await screen.findByRole("button", { name: /rename firefox on linux/i }));
+		const field = screen.getByLabelText(/device name/i);
+		fireEvent.change(field, { target: { value: "  Work laptop " } });
+		fireEvent.keyDown(field, { key: "Enter" });
+		expect(await screen.findByText("Work laptop")).toBeTruthy();
+		expect(h.calls).toContain("rename:pk:Work laptop");
+	});
+
+	it("keeps the name when the edit is cancelled or left blank", async () => {
+		h.listed = [{ publicKey: "pk", label: "Firefox on Linux", pairedAt: 1 }];
+		mount();
+		fireEvent.click(await screen.findByRole("button", { name: /rename firefox on linux/i }));
+		fireEvent.keyDown(screen.getByLabelText(/device name/i), { key: "Escape" });
+		fireEvent.click(await screen.findByRole("button", { name: /rename firefox on linux/i }));
+		const field = screen.getByLabelText(/device name/i);
+		fireEvent.change(field, { target: { value: "   " } });
+		fireEvent.keyDown(field, { key: "Enter" });
+		expect(await screen.findByText("Firefox on Linux")).toBeTruthy();
+		expect(h.calls.some((c) => c.startsWith("rename:"))).toBe(false);
 	});
 
 	it("moves a browser off this list once it starts syncing", async () => {

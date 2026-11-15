@@ -1344,7 +1344,7 @@ msgstr "데스크톱 앱"
 msgid "Details"
 msgstr "세부 정보"
 
-#: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
+#: packages/core/src/app/screens/Settings/components/DeviceNameField.tsx
 msgid "Device name"
 msgstr "기기 이름"
 
@@ -2876,7 +2876,9 @@ msgstr "{removed} 태그를 제거했습니다. {0}개 태그."
 msgid "Removing…"
 msgstr "제거 중…"
 
+#. placeholder {0}: browser.label
 #. placeholder {0}: nameOf(d) || "device"
+#: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "Rename {0}"
 msgstr "{0} 이름 변경"

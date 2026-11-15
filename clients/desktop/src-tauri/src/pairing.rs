@@ -581,6 +581,34 @@ pub fn forget_peer_in(root: &Path, public_key: &str, vault_id: &str) -> Res<bool
     Ok(removed)
 }
 
+/// The longest name a browser can be given (the device name field's limit).
+const MAX_LABEL_CHARS: usize = 64;
+
+/// Give a browser of the vault open now a name of the user's own. Only the display label
+/// changes: the key is the identity, so a rename can neither admit nor revoke anything. Saving
+/// re-seals the file. A blank name is refused rather than clearing the label, since nothing
+/// would remain to show.
+pub fn rename_peer(root: &Path, public_key: &str, label: &str) -> Res<bool> {
+    let label: String = label.trim().chars().take(MAX_LABEL_CHARS).collect();
+    if label.is_empty() {
+        return Err("a browser needs a name".to_string());
+    }
+    let Some(vault_id) = open_vault_id(root)? else {
+        return Ok(false);
+    };
+    let mut file = read_trusted(root)?;
+    let mut peers = vault_peers(root, &file, &vault_id)?;
+    let Some(peer) = peers.iter_mut().find(|p| p.public_key == public_key) else {
+        return Ok(false);
+    };
+    if peer.label != label {
+        peer.label = label;
+        file.vaults.insert(vault_id, peers);
+        save(root, &mut file)?;
+    }
+    Ok(true)
+}
+
 /// Pin a link from before the per-vault lists to `vault_id`, which it has just proved it syncs
 /// with, so no other vault takes it after this. A link made since is never touched.
 pub fn pin_link(root: &Path, public_key: &str, vault_id: &str) -> Res<bool> {
@@ -884,6 +912,39 @@ mod tests {
         assert!(forget_peer(d.path(), &ext_pub).unwrap());
         assert!(accept_known(d.path(), &ext_pub).is_err());
         assert!(!forget_peer(d.path(), &ext_pub).unwrap());
+    }
+
+    #[test]
+    fn renaming_a_peer_changes_only_its_label() {
+        let _g = setup();
+        let d = root();
+        let ext_pub = link(d.path(), "chrome");
+        let other = link(d.path(), "firefox");
+        let paired_at = paired_peers(d.path()).unwrap()[0].paired_at;
+
+        assert!(rename_peer(d.path(), &ext_pub, "  Work laptop  ").unwrap());
+
+        let peers = paired_peers(d.path()).unwrap();
+        let renamed = peers.iter().find(|p| p.public_key == ext_pub).unwrap();
+        assert_eq!(renamed.label, "Work laptop");
+        assert_eq!(renamed.paired_at, paired_at);
+        assert_eq!(
+            peers.iter().find(|p| p.public_key == other).unwrap().label,
+            "firefox"
+        );
+        // Still trusted: the rename re-sealed the file instead of tripping it.
+        assert!(accept_known(d.path(), &ext_pub).is_ok());
+    }
+
+    #[test]
+    fn renaming_an_unknown_peer_or_to_nothing_is_refused() {
+        let _g = setup();
+        let d = root();
+        let ext_pub = link(d.path(), "chrome");
+
+        assert!(!rename_peer(d.path(), "unknown", "Name").unwrap());
+        assert!(rename_peer(d.path(), &ext_pub, "   ").is_err());
+        assert_eq!(paired_peers(d.path()).unwrap()[0].label, "chrome");
     }
 
     #[test]
@@ -1331,6 +1392,12 @@ pub fn pairing_forget(app: AppHandle, public_key: String) -> Result<bool, String
     // Its open connection goes now, so it learns at once rather than on its next frame.
     crate::socket::vault_opened(&root);
     Ok(removed)
+}
+
+/// Name a browser of the vault open now. See `rename_peer`.
+#[tauri::command]
+pub fn pairing_rename(app: AppHandle, public_key: String, label: String) -> Result<bool, String> {
+    rename_peer(&data_dir(&app)?, &public_key, &label)
 }
 
 /// End a browser's link to `vault_id` because it was removed from that vault's sync group.

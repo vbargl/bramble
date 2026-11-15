@@ -1,5 +1,5 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PairedBrowser } from "../../../../adapters/pairing";
 import { backupTargetsKeyFor } from "../../../../backup/config";
@@ -19,6 +19,7 @@ import { Button } from "../../../components/ui/button";
 import { InlineConfirm } from "../../../components/ui/inline-confirm";
 import { Modal } from "../../../components/ui/modal";
 import { PasswordField } from "../../../components/ui/password-field";
+import { DeviceNameField } from "./DeviceNameField";
 import { Row, Section } from "./primitives";
 
 /** Matches the link window's lifetime in the app (pairing.rs `LINK_WINDOW`), after which a
@@ -43,6 +44,8 @@ export function BrowserPairingSection() {
 	/** The Connect dialog is open: a browser pressing Link now reaches this vault. */
 	const [open, setOpen] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	/** The browser whose name is being edited, by public key. */
+	const [renamingKey, setRenamingKey] = useState<string | null>(null);
 	// The master-password gate. Connecting a browser now also enrols it in this vault's sync
 	// group, and admitting a device is signed with a key derived from a freshly typed password.
 	const [gateOpen, setGateOpen] = useState(false);
@@ -281,6 +284,15 @@ export function BrowserPairingSection() {
 		}
 	};
 
+	const rename = async (publicKey: string, name: string) => {
+		try {
+			await pairing.rename?.(publicKey, name);
+			await refresh();
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	};
+
 	const unlisted = browsers.filter((b) => !syncing.has(b.publicKey));
 
 	return (
@@ -310,9 +322,34 @@ export function BrowserPairingSection() {
 									className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2"
 								>
 									<div className="min-w-0">
-										{/* Self-declared at pairing time, so it is shown as information and
-										    never used to decide anything. */}
-										<p className="text-sm truncate">{browser.label}</p>
+										{renamingKey === browser.publicKey ? (
+											<DeviceNameField
+												initial={browser.label}
+												onDone={(name) => {
+													setRenamingKey(null);
+													const next = name?.trim();
+													// Blank keeps the name: nothing would be left to show.
+													if (next && next !== browser.label) void rename(browser.publicKey, next);
+												}}
+											/>
+										) : (
+											<div className="text-sm flex items-center gap-2">
+												{/* Self-declared at pairing time unless renamed, so it is shown as
+												    information and never used to decide anything. */}
+												<span className="truncate">{browser.label}</span>
+												{pairing.rename && (
+													<Button
+														variant="link"
+														size="none"
+														onClick={() => setRenamingKey(browser.publicKey)}
+														aria-label={t`Rename ${browser.label}`}
+														className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+													>
+														<Pencil className="w-3 h-3" />
+													</Button>
+												)}
+											</div>
+										)}
 										<p className="text-xs text-muted-foreground mt-0.5">
 											<Trans>Connected {formatDate(browser.pairedAt)}</Trans>
 										</p>

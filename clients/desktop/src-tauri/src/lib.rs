@@ -317,6 +317,7 @@ pub fn run() {
             spotlight::spotlight_set_height,
             pairing::pairing_list,
             pairing::pairing_forget,
+            pairing::pairing_rename,
             pairing::pairing_pin_link,
             pairing::pairing_forget_in_vault,
             pairing::pairing_public_key,

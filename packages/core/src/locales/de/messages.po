@@ -1488,7 +1488,7 @@ msgstr "Desktop-App"
 msgid "Details"
 msgstr "Details"
 
-#: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
+#: packages/core/src/app/screens/Settings/components/DeviceNameField.tsx
 msgid "Device name"
 msgstr "Gerätename"
 
@@ -3185,7 +3185,9 @@ msgstr "Tag {removed} entfernt. {0} Tags."
 msgid "Removing…"
 msgstr "Entfernen…"
 
+#. placeholder {0}: browser.label
 #. placeholder {0}: nameOf(d) || "device"
+#: packages/core/src/app/screens/Settings/components/BrowserPairingSection.tsx
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "Rename {0}"
 msgstr "Umbenennen: {0}"
