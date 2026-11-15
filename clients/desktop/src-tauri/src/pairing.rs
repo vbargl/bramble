@@ -205,8 +205,8 @@ fn seal_holds(id: &Identity, file: &PairingFile) -> bool {
     check().unwrap_or(false)
 }
 
-fn sealed_identity() -> Res<Option<Identity>> {
-    Ok(load_identity()?.filter(|id| id.sealed))
+fn sealed_identity(root: &Path) -> Res<Option<Identity>> {
+    Ok(load_identity(root)?.filter(|id| id.sealed))
 }
 
 /// pairing.json with `peers` cut to what this app sealed: a file anything else changed keeps
@@ -227,7 +227,7 @@ fn read_trusted(root: &Path) -> Res<PairingFile> {
 /// pairing.json as it stands, and whether this app's seal holds over it.
 fn read_checked(root: &Path) -> Res<(PairingFile, bool)> {
     let file = read_file(root)?;
-    let trusted = match sealed_identity()? {
+    let trusted = match sealed_identity(root)? {
         Some(id) => seal_holds(&id, &file),
         None => true,
     };
@@ -236,7 +236,7 @@ fn read_checked(root: &Path) -> Res<(PairingFile, bool)> {
 
 /// Write pairing.json, sealed whenever this device's identity seals it.
 fn save(root: &Path, file: &mut PairingFile) -> Res<()> {
-    file.seal = match sealed_identity()? {
+    file.seal = match sealed_identity(root)? {
         Some(id) => sign_seal(&id, file)?,
         None => String::new(),
     };
@@ -257,11 +257,6 @@ fn restrict(p: &Path) -> Res<()> {
     Ok(())
 }
 
-#[cfg_attr(test, allow(dead_code))]
-fn entry() -> Res<keyring::Entry> {
-    crate::secure_store::entry(KEYCHAIN_ACCOUNT)
-}
-
 // Only the storage leaf is swapped under test, so everything above it (generation, the
 // migration, the fingerprint check) is the shipped code path. keyring's own mock store is not
 // usable here: it hands out a fresh credential per `Entry::new` rather than persisting, which
@@ -276,33 +271,33 @@ static TEST_STORE: Mutex<Option<String>> = Mutex::new(None);
 #[cfg(test)]
 static STORE_READS: Mutex<u32> = Mutex::new(0);
 
-fn read_raw() -> Res<Option<String>> {
+/// Through `secure_store`'s durable tier rather than the credential store directly: where that
+/// store does not outlast a reboot (the Linux kernel keyring) the identity is put back from a copy
+/// sealed under the vault key, as the sync device keys are. Without it every linked browser
+/// stopped connecting after a reboot and could only be disconnected and linked again.
+fn read_raw(root: &Path) -> Res<Option<String>> {
     #[cfg(test)]
     {
+        let _ = root;
         *STORE_READS.lock().unwrap() += 1;
         Ok(TEST_STORE.lock().unwrap().clone())
     }
     #[cfg(not(test))]
     {
-        match entry()?.get_password() {
-            Ok(raw) => Ok(Some(raw)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(format!("credential store read: {e}")),
-        }
+        crate::secure_store::read_durable(root, KEYCHAIN_ACCOUNT)
     }
 }
 
-fn write_raw(raw: &str) -> Res<()> {
+fn write_raw(root: &Path, raw: &str) -> Res<()> {
     #[cfg(test)]
     {
+        let _ = root;
         *TEST_STORE.lock().unwrap() = Some(raw.to_string());
         Ok(())
     }
     #[cfg(not(test))]
     {
-        entry()?
-            .set_password(raw)
-            .map_err(|e| format!("credential store write: {e}"))
+        crate::secure_store::write_durable(root, KEYCHAIN_ACCOUNT, raw)
     }
 }
 
@@ -320,11 +315,24 @@ fn write_raw(raw: &str) -> Res<()> {
 /// and prompted again. An absent key is just as stable a fact as a present one.
 static CACHED: Mutex<Option<Option<Identity>>> = Mutex::new(None);
 
-fn load_identity() -> Res<Option<Identity>> {
-    if let Some(cached) = CACHED.lock().unwrap().clone() {
-        return Ok(cached);
+/// The vault whose sealed copy the cached identity was last checked against.
+///
+/// A key found missing while the vault is locked is not final: unlocking can restore it from the
+/// copy, and a key found present has not been sealed for a vault that was not open yet. So the
+/// credential store is consulted again, once, for each vault that unlocks. That is no extra
+/// prompt: `secure_store` caches the value (and its absence) itself, so only the copy is read.
+static CHECKED_FOR: Mutex<Option<String>> = Mutex::new(None);
+
+fn load_identity(root: &Path) -> Res<Option<Identity>> {
+    // An unreadable registry counts as locked: the cache answers, as before sealing existed.
+    let vault = crate::secure_store::sealing_vault(root).unwrap_or(None);
+    let checked = vault.is_none() || *CHECKED_FOR.lock().unwrap() == vault;
+    if checked {
+        if let Some(cached) = CACHED.lock().unwrap().clone() {
+            return Ok(cached);
+        }
     }
-    let found = match read_raw()? {
+    let found = match read_raw(root)? {
         Some(raw) => Some(
             serde_json::from_str::<Identity>(&raw)
                 .map_err(|e| format!("parse stored identity: {e}"))?,
@@ -332,12 +340,15 @@ fn load_identity() -> Res<Option<Identity>> {
         None => None,
     };
     *CACHED.lock().unwrap() = Some(found.clone());
+    if vault.is_some() {
+        *CHECKED_FOR.lock().unwrap() = vault;
+    }
     Ok(found)
 }
 
-fn store_identity(id: &Identity) -> Res<()> {
+fn store_identity(root: &Path, id: &Identity) -> Res<()> {
     let raw = serde_json::to_string(id).map_err(|e| format!("encode identity: {e}"))?;
-    write_raw(&raw)?;
+    write_raw(root, &raw)?;
     *CACHED.lock().unwrap() = Some(Some(id.clone()));
     Ok(())
 }
@@ -351,7 +362,7 @@ fn store_identity(id: &Identity) -> Res<()> {
 fn identity(root: &Path) -> Res<(String, String)> {
     let mut file = read_file(root)?;
 
-    if let Some(mut id) = load_identity()? {
+    if let Some(mut id) = load_identity(root)? {
         // The allowlist names peers that authenticate against a specific key. If the stored
         // identity is not that key, those entries are meaningless and continuing would look
         // like every browser spontaneously failing to connect.
@@ -364,7 +375,7 @@ fn identity(root: &Path) -> Res<(String, String)> {
             file.seal = sign_seal(&id, &file)?;
             write_file(root, &file)?;
             id.sealed = true;
-            store_identity(&id)?;
+            store_identity(root, &id)?;
         }
         return Ok((id.private_key, id.public_key));
     }
@@ -374,11 +385,14 @@ fn identity(root: &Path) -> Res<(String, String)> {
     }
 
     let kp = handshake::handshake_generate_keypair().map_err(|e| format!("keygen: {e:?}"))?;
-    store_identity(&Identity {
-        private_key: kp.private_key.clone(),
-        public_key: kp.public_key.clone(),
-        sealed: true,
-    })?;
+    store_identity(
+        root,
+        &Identity {
+            private_key: kp.private_key.clone(),
+            public_key: kp.public_key.clone(),
+            sealed: true,
+        },
+    )?;
     file.public_key = kp.public_key.clone();
     save(root, &mut file)?;
     Ok((kp.private_key, kp.public_key))
@@ -770,7 +784,10 @@ mod tests {
         let guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         *TEST_STORE.lock().unwrap() = None;
         *CACHED.lock().unwrap() = None;
+        *CHECKED_FOR.lock().unwrap() = None;
         *STORE_READS.lock().unwrap() = 0;
+        // The vault is a process global, and secure_store's tests leave it unlocked.
+        vault_crypto::lock();
         drop_pending();
         guard
     }
@@ -833,6 +850,33 @@ mod tests {
 
         let err = public_key(d.path()).unwrap_err();
         assert!(err.contains("Disconnect"), "no recovery offered: {err}");
+    }
+
+    #[test]
+    fn an_identity_missing_while_locked_is_looked_up_again_once_the_vault_unlocks() {
+        // What a reboot does on a kernel keyring: the key is gone until the vault's copy opens.
+        let _g = setup();
+        let d = root();
+        open_vault(d.path(), "v1");
+        assert!(load_identity(d.path()).unwrap().is_none());
+
+        // What restoring the sealed copy puts back. Locked, nothing looks again.
+        let id = handshake::handshake_generate_keypair().unwrap();
+        *TEST_STORE.lock().unwrap() = Some(
+            serde_json::json!({ "privateKey": id.private_key, "publicKey": id.public_key })
+                .to_string(),
+        );
+        assert!(load_identity(d.path()).unwrap().is_none());
+
+        vault_crypto::generate_vek_in_place().unwrap();
+        assert!(load_identity(d.path()).unwrap().is_some());
+        assert!(load_identity(d.path()).unwrap().is_some());
+        assert_eq!(
+            *STORE_READS.lock().unwrap(),
+            2,
+            "once while locked, once for the vault that unlocked"
+        );
+        vault_crypto::lock();
     }
 
     #[test]
@@ -935,7 +979,7 @@ mod tests {
 
         assert!(accept_known(d.path(), &rogue.public_key).is_err());
         assert!(
-            read_raw().unwrap().is_none(),
+            read_raw(d.path()).unwrap().is_none(),
             "nothing adopted into the store"
         );
     }
@@ -980,7 +1024,7 @@ mod tests {
         .unwrap();
 
         close(&accept_known(d.path(), &browser.public_key).unwrap());
-        assert!(load_identity().unwrap().unwrap().sealed);
+        assert!(load_identity(d.path()).unwrap().unwrap().sealed);
 
         let rogue = handshake::handshake_generate_keypair().unwrap();
         let mut file: serde_json::Value =

@@ -291,8 +291,10 @@ fn reserved(key: &str) -> Res<()> {
 
 const SEALED_PREFIX: &str = "secure.sealed:";
 
+/// The device's own identities: the sync keys, and the key the browser links authenticate against.
+/// Losing the second leaves every linked browser listed and unable to connect.
 fn sealable(account: &str) -> bool {
-    account.starts_with("sync.")
+    account.starts_with("sync.") || account == crate::pairing::KEYCHAIN_ACCOUNT
 }
 
 fn sealed_key(account: &str) -> String {
@@ -311,7 +313,7 @@ fn sealed_copies(root: &Path, account: &str) -> Res<Map<String, Value>> {
 }
 
 /// The vault whose key would open a copy: only meaningful while unlocked.
-fn sealing_vault(root: &Path) -> Res<Option<String>> {
+pub(crate) fn sealing_vault(root: &Path) -> Res<Option<String>> {
     if vault_crypto::is_locked() {
         return Ok(None);
     }
@@ -531,6 +533,27 @@ mod tests {
         );
         // Restored into the store too, so the next read does not need the copy.
         assert_eq!(cached("sync.deviceKeypair"), Some(Some("kp".into())));
+    }
+
+    #[test]
+    fn a_lost_link_identity_comes_back_when_the_vault_unlocks() {
+        let _g = setup();
+        let dir = tempfile::tempdir().unwrap();
+        let account = crate::pairing::KEYCHAIN_ACCOUNT;
+        let vek = unlocked();
+        // The app writes it itself: the webview may not (see `reserved`).
+        write_durable(dir.path(), account, "link-identity").unwrap();
+        assert!(set(dir.path(), account, "x").is_err());
+
+        lose_credential_store();
+        vault_crypto::lock();
+        assert_eq!(read_durable(dir.path(), account).unwrap(), None);
+
+        vault_crypto::unlock_with_vek(vek).unwrap();
+        assert_eq!(
+            read_durable(dir.path(), account).unwrap(),
+            Some("link-identity".into())
+        );
     }
 
     #[test]
