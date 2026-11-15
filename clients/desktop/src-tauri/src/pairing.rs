@@ -391,7 +391,7 @@ pub fn public_key(root: &Path) -> Res<String> {
 /// The vault open in the app: the active one the webview recorded, else the only one there is.
 /// With several and none recorded there is no safe answer, so nobody is admitted. Before the
 /// registry existed the one vault had no id, which storage calls `DEFAULT_VAULT_ID`.
-fn open_vault_id(root: &Path) -> Res<Option<String>> {
+pub(crate) fn open_vault_id(root: &Path) -> Res<Option<String>> {
     if let Some(serde_json::Value::String(id)) = storage::ops::get_meta(root, ACTIVE_VAULT_KEY)? {
         return Ok(Some(id));
     }
