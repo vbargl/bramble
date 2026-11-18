@@ -344,6 +344,10 @@ msgstr "데스크톱의 저장소 추가"
 msgid "Add the websites this login covers. Leave empty for a credential not tied to a site."
 msgstr "이 로그인이 적용되는 웹사이트를 추가하세요. 사이트에 연결되지 않은 자격 증명은 비워 두세요."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "Add to the SSH agent while the vault is unlocked"
+msgstr "보관함이 잠금 해제된 동안 SSH 에이전트에 추가"
+
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "Add URL"
 msgstr "URL 추가"
@@ -2332,6 +2336,10 @@ msgstr "이 사이트에는 저장 카드가 없습니다. 다시 표시하려�
 msgid "No security key registered on this vault."
 msgstr "이 볼트에 등록된 보안 키가 없습니다."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "No SSH agent is running, so this key was not added."
+msgstr "실행 중인 SSH 에이전트가 없어 이 키를 추가하지 못했습니다."
+
 #. placeholder {0}: shell.appName
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "No transfer is waiting. Start one from the other app and pick {0}."
@@ -2432,6 +2440,10 @@ msgstr "로그인 저장 제안"
 #: packages/core/src/app/components/SasDisplay.tsx
 msgid "Older version on the other device? Compare this instead:"
 msgstr "다른 기기에 이전 버전이 있나요? 대신 이것을 비교하세요:"
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "On this device only. The key leaves the agent when the vault locks."
+msgstr "이 기기에만 적용됩니다. 보관함이 잠기면 키가 에이전트에서 제거됩니다."
 
 #: packages/core/src/app/screens/Settings/components/BackupSection.tsx
 msgid "One-click sign-in for {name} is coming in a future update. For now, pick a provider under \"Bring your own storage\"."
@@ -3593,9 +3605,17 @@ msgstr "이 파일에 새로 추가된 항목은 첨부 파일뿐이며, 이 브
 msgid "The other version"
 msgstr "다른 버전"
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The passphrase does not open this private key, so it was not added."
+msgstr "암호 문구로 이 개인 키를 열 수 없어 추가하지 못했습니다."
+
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "The signaling relay that introduces devices. Defaults to the hosted relay; point it at your own or any public Nostr relay."
 msgstr "기기를 연결해 주는 시그널링 릴레이입니다. 기본값은 호스팅 릴레이이며, 자체 릴레이 또는 공개 Nostr 릴레이를 지정할 수 있습니다."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The SSH agent refused this key."
+msgstr "SSH 에이전트가 이 키를 거부했습니다."
 
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "The vault locked, so the attachments read from that file were cleared. Open it again to import them."
@@ -3766,6 +3786,10 @@ msgstr "이 로그인에는 패스키가 있습니다."
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "This password appeared in a known data breach."
 msgstr "이 비밀번호는 알려진 데이터 유출에서 발견되었습니다."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "This private key is not in OpenSSH format, so it was not added."
+msgstr "이 개인 키는 OpenSSH 형식이 아니어서 추가하지 못했습니다."
 
 #: packages/core/src/app/screens/Settings/components/DeleteVaultSection.tsx
 msgid "This removes the vault from this device. Synced copies on your other devices aren't affected, and this can't be undone here. Confirm to continue."

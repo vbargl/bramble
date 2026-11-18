@@ -32,7 +32,8 @@ pub fn crypto_is_locked() -> bool {
 
 #[tauri::command]
 pub fn crypto_lock() {
-    vault_crypto::lock()
+    vault_crypto::lock();
+    crate::ssh_agent::clear();
 }
 
 #[tauri::command]

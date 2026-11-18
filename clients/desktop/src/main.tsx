@@ -13,6 +13,7 @@ import { desktopFiles, startOpenedCopySweeps } from "./adapters/files";
 import { desktopHttp } from "./adapters/http";
 import { desktopPairing } from "./adapters/pairing";
 import { desktopShell, registerOpenSetup, resolveAppVersion } from "./adapters/shell";
+import { desktopSshAgent } from "./adapters/ssh-agent";
 import { desktopStorage } from "./adapters/storage";
 import { onVaultStateChange } from "./adapters/vault-session";
 import { startAutoLock } from "./auto-lock";
@@ -43,6 +44,7 @@ const platform: Platform = {
 	files: desktopFiles,
 	// Touch ID now, Windows Hello next; Linux reports unavailable. docs/desktop-biometric-unlock.md.
 	biometric: desktopBiometric,
+	sshAgent: desktopSshAgent,
 	// exchange: iOS only.
 };
 

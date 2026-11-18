@@ -11,6 +11,7 @@ import type { FileAdapter } from "../adapters/files";
 import type { HttpTransport } from "../adapters/http";
 import type { PairingAdapter } from "../adapters/pairing";
 import type { ShellAdapter } from "../adapters/shell";
+import type { SshAgentAdapter } from "../adapters/ssh-agent";
 import type { StorageAdapter } from "../adapters/storage";
 import { type CapabilityKey, can, type Surface, surfaceOf, type Target } from "../flags";
 
@@ -46,6 +47,9 @@ export interface Platform {
 	/** File attachments: the sealed-blob store and the platform's sealer. Absent where the
 	 * platform has nowhere to put the bytes, and the UI then hides attachments entirely. */
 	files?: FileAdapter;
+	/** Adding SSH keys to the machine's ssh-agent while unlocked. Desktop only; elsewhere the
+	 * SSH key entry shows no checkbox for it. */
+	sshAgent?: SshAgentAdapter;
 }
 
 const PlatformContext = createContext<Platform | null>(null);

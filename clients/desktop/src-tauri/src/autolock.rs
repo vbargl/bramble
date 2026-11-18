@@ -10,7 +10,7 @@ use std::{
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
-use crate::{index_store, storage, storage::ops};
+use crate::{index_store, ssh_agent, storage, storage::ops};
 
 pub const LOCKED_EVENT: &str = "vault://auto-locked";
 const CHECK_SECONDS: u64 = 15;
@@ -92,6 +92,7 @@ pub fn autolock_touch() {
 fn lock_now(app: &AppHandle) {
     vault_crypto::lock();
     index_store::clear();
+    ssh_agent::clear();
     if let Err(e) = app.emit(LOCKED_EVENT, ()) {
         log::warn!("auto-lock event not delivered: {e}");
     }

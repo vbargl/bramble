@@ -32,6 +32,7 @@ mod socket;
 #[allow(dead_code)]
 mod socket_addr;
 mod spotlight;
+mod ssh_agent;
 mod storage;
 mod stream;
 mod sync_crypto;
@@ -340,6 +341,8 @@ pub fn run() {
             socket::link_set_sync_identity,
             socket::spotlight_active_tab,
             socket::spotlight_request_fill,
+            ssh_agent::ssh_agent_available,
+            ssh_agent::ssh_agent_set_keys,
             secure_store::secure_get,
             secure_store::secure_set,
             secure_store::secure_delete,
@@ -412,6 +415,8 @@ pub fn run() {
                 code: None, api, ..
             } => api.prevent_exit(),
             RunEvent::ExitRequested { .. } => {}
+            // Keys handed to the ssh-agent must not outlive the app that would take them back.
+            RunEvent::Exit => ssh_agent::clear(),
             _ => {
                 let _ = app;
             }

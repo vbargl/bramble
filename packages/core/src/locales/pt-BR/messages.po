@@ -423,6 +423,10 @@ msgstr "Adicionar o cofre do desktop"
 msgid "Add the websites this login covers. Leave empty for a credential not tied to a site."
 msgstr "Adicionar os sites que este login cobre. Deixe em branco se as credenciais não estiverem vinculadas a um site."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "Add to the SSH agent while the vault is unlocked"
+msgstr "Adicionar ao agente SSH enquanto o cofre estiver desbloqueado"
+
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "Add URL"
 msgstr "Adicionar URL"
@@ -2589,6 +2593,10 @@ msgstr "Nenhum cartão salvo neste site. Remova para começar a solicitar novame
 msgid "No security key registered on this vault."
 msgstr "Nenhuma chave de segurança registrada neste cofre."
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "No SSH agent is running, so this key was not added."
+msgstr "Nenhum agente SSH está em execução, por isso esta chave não foi adicionada."
+
 #. placeholder {0}: shell.appName
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "No transfer is waiting. Start one from the other app and pick {0}."
@@ -2705,6 +2713,10 @@ msgstr "Oferta para salvar logins"
 #: packages/core/src/app/components/SasDisplay.tsx
 msgid "Older version on the other device? Compare this instead:"
 msgstr "Versão mais antiga no outro dispositivo? Compare esta em vez disso:"
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "On this device only. The key leaves the agent when the vault locks."
+msgstr "Somente neste dispositivo. A chave sai do agente quando o cofre é bloqueado."
 
 #: packages/core/src/app/screens/Settings/components/BackupSection.tsx
 msgid "One-click sign-in for {name} is coming in a future update. For now, pick a provider under \"Bring your own storage\"."
@@ -3966,9 +3978,17 @@ msgstr "As únicas novidades neste arquivo são anexos, que este navegador só p
 msgid "The other version"
 msgstr "A outra versão"
 
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The passphrase does not open this private key, so it was not added."
+msgstr "A frase de senha não abre esta chave privada, por isso ela não foi adicionada."
+
 #: packages/core/src/app/screens/Settings/components/SyncConnectSection.tsx
 msgid "The signaling relay that introduces devices. Defaults to the hosted relay; point it at your own or any public Nostr relay."
 msgstr "O relé de sinalização que introduz os dispositivos. Padrão é o relé hospedado; aponte para o seu próprio ou qualquer relé Nostr público."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "The SSH agent refused this key."
+msgstr "O agente SSH recusou esta chave."
 
 #: packages/core/src/app/screens/Import/ImportShell.tsx
 msgid "The vault locked, so the attachments read from that file were cleared. Open it again to import them."
@@ -4175,6 +4195,10 @@ msgstr "Este login possui uma chave de acesso"
 #: packages/core/src/app/entry-modes/login.tsx
 msgid "This password appeared in a known data breach."
 msgstr "Esta senha apareceu em uma violação de dados conhecida."
+
+#: packages/core/src/app/entry-modes/ssh-key.tsx
+msgid "This private key is not in OpenSSH format, so it was not added."
+msgstr "Esta chave privada não está no formato OpenSSH, por isso não foi adicionada."
 
 #: packages/core/src/app/screens/Settings/components/DeleteVaultSection.tsx
 msgid "This removes the vault from this device. Synced copies on your other devices aren't affected, and this can't be undone here. Confirm to continue."
